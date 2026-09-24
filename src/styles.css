@@ -150,6 +150,9 @@
 
   h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; }
   ::selection { background: color-mix(in oklab, var(--color-primary) 35%, transparent); }
+  input[type="number"] { appearance: textfield; }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
 }
 
 @keyframes enter-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
