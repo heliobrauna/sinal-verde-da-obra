@@ -14,16 +14,211 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bonus_arquivos: {
+        Row: {
+          arquivo_url: string
+          created_at: string
+          descricao: string
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          arquivo_url?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          arquivo_url?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cub_referencia: {
+        Row: {
+          created_at: string
+          estado: string
+          id: string
+          mes_referencia: string
+          padrao_acabamento: string
+          updated_at: string
+          valor_m2: number
+        }
+        Insert: {
+          created_at?: string
+          estado: string
+          id?: string
+          mes_referencia: string
+          padrao_acabamento: string
+          updated_at?: string
+          valor_m2: number
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          id?: string
+          mes_referencia?: string
+          padrao_acabamento?: string
+          updated_at?: string
+          valor_m2?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          email: string
+          id: string
+          nome?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      simulacoes: {
+        Row: {
+          bdi_percentual: number
+          created_at: string
+          credito_aprovado: number
+          cub_valor_m2: number
+          custos_extras: Json
+          estado: string
+          id: string
+          lucro_desejado: number | null
+          nome: string
+          objetivo: string
+          padrao_acabamento: string
+          prazo_venda_meses: number | null
+          renda_declarada: number
+          resultado: Json
+          saldo_devedor_terreno: number | null
+          taxa_juros_obra_mensal: number
+          terreno_situacao: string
+          terreno_valor: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bdi_percentual?: number
+          created_at?: string
+          credito_aprovado: number
+          cub_valor_m2: number
+          custos_extras?: Json
+          estado: string
+          id?: string
+          lucro_desejado?: number | null
+          nome: string
+          objetivo: string
+          padrao_acabamento: string
+          prazo_venda_meses?: number | null
+          renda_declarada: number
+          resultado?: Json
+          saldo_devedor_terreno?: number | null
+          taxa_juros_obra_mensal?: number
+          terreno_situacao: string
+          terreno_valor: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bdi_percentual?: number
+          created_at?: string
+          credito_aprovado?: number
+          cub_valor_m2?: number
+          custos_extras?: Json
+          estado?: string
+          id?: string
+          lucro_desejado?: number | null
+          nome?: string
+          objetivo?: string
+          padrao_acabamento?: string
+          prazo_venda_meses?: number | null
+          renda_declarada?: number
+          resultado?: Json
+          saldo_devedor_terreno?: number | null
+          taxa_juros_obra_mensal?: number
+          terreno_situacao?: string
+          terreno_valor?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulacoes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +345,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
