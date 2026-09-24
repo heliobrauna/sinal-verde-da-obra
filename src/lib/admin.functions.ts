@@ -9,7 +9,7 @@ async function ensureAdmin(context: { supabase: any; userId: string }) {
 
 export const updateUserAccess = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({ userId: z.string().uuid(), role: z.enum(['admin','user']).optional(), ativo: z.boolean().optional() }).parse(data))
+  .validator((data) => z.object({ userId: z.string().uuid(), role: z.enum(['admin','user']).optional(), ativo: z.boolean().optional() }).parse(data))
   .handler(async ({ data, context }) => {
     await ensureAdmin(context)
     if (data.userId === context.userId && (data.role === 'user' || data.ativo === false)) throw new Error('Você não pode remover o próprio acesso administrativo.')
@@ -29,7 +29,7 @@ export const updateUserAccess = createServerFn({ method: 'POST' })
 
 export const deleteUser = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({ userId: z.string().uuid() }).parse(data))
+  .validator((data) => z.object({ userId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     await ensureAdmin(context)
     if (data.userId === context.userId) throw new Error('Você não pode excluir a própria conta administrativa.')
