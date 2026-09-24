@@ -91,7 +91,7 @@ async function fetchOfficialCub(estado: string, padrao: keyof typeof patternInde
 
 export const getResidentialCub = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
+  .validator((data) =>
     z
       .object({ estado: z.string().length(2), padrao: z.enum(["baixo", "normal", "alto"]) })
       .parse(data),
