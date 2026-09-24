@@ -13,4 +13,4 @@
 - [x] Consultar automaticamente o CUB residencial oficial por UF e bloquear edição
 - [x] Pré-preencher sugestões de custos fora do CUB
 - [x] Criar despesas adicionais estimadas, editáveis e detalhadas com fontes
-- [ ] Atualizar cálculos, persistência, resultado e validar os fluxos
+- [x] Atualizar cálculos, persistência, resultado e validar os fluxos

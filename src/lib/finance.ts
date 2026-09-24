@@ -211,7 +211,7 @@ export function calculate(input: SimulationInput) {
   );
   const custoM2 = input.cub * (1 + input.bdi / 100);
   const areaViavel = custoM2 > 0 ? disponivel / custoM2 : 0;
-  const custoObra = areaViavel * custoM2 + extrasTotal + despesasTotal + jurosObra;
+  const custoObra = areaViavel * custoM2 + extrasTotal + despesasTotal
   const cenarios = [-0.15, 0, 0.15].map((ajuste, i) => ({
     nome: ["Pessimista", "Realista", "Otimista"][i],
     ajuste,
