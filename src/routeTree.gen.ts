@@ -13,7 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
+import { Route as AuthenticatedBonusRouteImport } from './routes/_authenticated/bonus'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedSimulacaoRouteImport } from './routes/_authenticated/simulacao.'
 import { Route as AuthenticatedSimulacaoNovaRouteImport } from './routes/_authenticated/simulacao.nova'
 
@@ -36,10 +40,29 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBonusRoute = AuthenticatedBonusRouteImport.update({
+  id: '/bonus',
+  path: '/bonus',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
 const AuthenticatedSimulacaoRoute = AuthenticatedSimulacaoRouteImport.update({
   id: '/simulacao/',
@@ -57,16 +80,22 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cadastro': typeof CadastroRoute
   '/login': typeof LoginRoute
+  '/bonus': typeof AuthenticatedBonusRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
   '/simulacao/': typeof AuthenticatedSimulacaoRoute
+  '/admin': typeof AuthenticatedAdminAdminRoute
   '/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cadastro': typeof CadastroRoute
   '/login': typeof LoginRoute
+  '/bonus': typeof AuthenticatedBonusRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
   '/simulacao': typeof AuthenticatedSimulacaoRoute
+  '/admin': typeof AuthenticatedAdminAdminRoute
   '/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
 }
 export interface FileRoutesById {
@@ -75,8 +104,12 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/cadastro': typeof CadastroRoute
   '/login': typeof LoginRoute
+  '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/_authenticated/bonus': typeof AuthenticatedBonusRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/simulacao/': typeof AuthenticatedSimulacaoRoute
+  '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
   '/_authenticated/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
 }
 export interface FileRouteTypes {
@@ -85,16 +118,22 @@ export interface FileRouteTypes {
     | '/'
     | '/cadastro'
     | '/login'
+    | '/bonus'
     | '/dashboard'
+    | '/perfil'
     | '/simulacao/'
+    | '/admin'
     | '/simulacao/nova'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/cadastro'
     | '/login'
+    | '/bonus'
     | '/dashboard'
+    | '/perfil'
     | '/simulacao'
+    | '/admin'
     | '/simulacao/nova'
   id:
     | '__root__'
@@ -102,8 +141,12 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/cadastro'
     | '/login'
+    | '/_authenticated/_admin'
+    | '/_authenticated/bonus'
     | '/_authenticated/dashboard'
+    | '/_authenticated/perfil'
     | '/_authenticated/simulacao/'
+    | '/_authenticated/_admin/admin'
     | '/_authenticated/simulacao/nova'
   fileRoutesById: FileRoutesById
 }
@@ -144,12 +187,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/_admin': {
+      id: '/_authenticated/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/bonus': {
+      id: '/_authenticated/bonus'
+      path: '/bonus'
+      fullPath: '/bonus'
+      preLoaderRoute: typeof AuthenticatedBonusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/perfil': {
+      id: '/_authenticated/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/_admin/admin': {
+      id: '/_authenticated/_admin/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminAdminRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/simulacao/': {
       id: '/_authenticated/simulacao/'
@@ -168,14 +239,34 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRoute
+}
+
+const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
+  {
+    AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRoute,
+  }
+
+const AuthenticatedAdminRouteRouteWithChildren =
+  AuthenticatedAdminRouteRoute._addFileChildren(
+    AuthenticatedAdminRouteRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
+  AuthenticatedBonusRoute: typeof AuthenticatedBonusRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedSimulacaoRoute: typeof AuthenticatedSimulacaoRoute
   AuthenticatedSimulacaoNovaRoute: typeof AuthenticatedSimulacaoNovaRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
+  AuthenticatedBonusRoute: AuthenticatedBonusRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedSimulacaoRoute: AuthenticatedSimulacaoRoute,
   AuthenticatedSimulacaoNovaRoute: AuthenticatedSimulacaoNovaRoute,
 }
