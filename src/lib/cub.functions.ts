@@ -43,29 +43,36 @@ async function fetchOfficialCub(estado: string, padrao: keyof typeof patternInde
   const cookie = page.headers.get("set-cookie")?.match(/csrftoken=([^;]+)/)?.[1];
   if (!token || !cookie) throw new Error("Não foi possível iniciar a consulta");
   const now = new Date();
-  const body = new URLSearchParams({
-    csrfmiddlewaretoken: token,
-    uf: estado,
-    sinduscon,
-    relatorio: "tabela-cub-m2",
-    ano: String(now.getUTCFullYear()),
-    mes: String(now.getUTCMonth() + 1),
-    desoneracao: "sem-desoneracao",
-    variacao: "sem-variacao",
-    cimento: "1",
-    projeto: "1",
-  });
-  const pdf = await fetch(url, {
-    method: "POST",
-    headers: {
-      Cookie: `csrftoken=${cookie}`,
-      Referer: url,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
-  if (!pdf.ok || !pdf.headers.get("content-type")?.includes("pdf"))
-    throw new Error("A fonte não retornou a tabela");
+  let pdf: Response | null = null;
+  for (let offset = 0; offset < 18; offset += 1) {
+    const requested = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
+    const body = new URLSearchParams({
+      csrfmiddlewaretoken: token,
+      uf: estado,
+      sinduscon,
+      relatorio: "tabela-cub-m2",
+      ano: String(requested.getUTCFullYear()),
+      mes: String(requested.getUTCMonth() + 1),
+      desoneracao: "sem-desoneracao",
+      variacao: "sem-variacao",
+      cimento: "1",
+      projeto: "1",
+    });
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Cookie: `csrftoken=${cookie}`,
+        Referer: url,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+    if (response.ok && response.headers.get("content-type")?.includes("pdf")) {
+      pdf = response;
+      break;
+    }
+  }
+  if (!pdf) throw new Error("A fonte não retornou uma tabela recente");
   const { extractText } = await import("unpdf");
   const result = await extractText(new Uint8Array(await pdf.arrayBuffer()), { mergePages: true });
   const text = String(result.text);
