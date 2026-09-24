@@ -10,6 +10,7 @@ export type ClientExpense = {
   nome: string;
   valor: number;
   fonte: string;
+  fonteUrl?: string;
   observacao: string;
 };
 export type SimulationInput = {
@@ -38,7 +39,7 @@ export function estimatedExpenses(
     fonte: "Estimativa editável",
     observacao: "Confirme o valor real antes da contratação.",
   };
-  return [
+  const expenses: ClientExpense[] = [
     {
       id: "honorarios-entrada",
       categoria: "Despesas iniciais",
@@ -60,6 +61,7 @@ export function estimatedExpenses(
       nome: "Certidão de matrícula",
       valor: 100,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Emolumentos variam por estado.",
     },
     {
@@ -68,6 +70,7 @@ export function estimatedExpenses(
       nome: "ART/RRT",
       valor: 285.59,
       fonte: "Confea / CREA ou CAU da UF",
+      fonteUrl: "https://www.confea.org.br/profissional/taxas",
       observacao: "Referência; a tabela anual varia por conselho e UF.",
     },
     { id: "plotagens", categoria: "Despesas iniciais", nome: "Plotagens", valor: 300, ...common },
@@ -93,6 +96,7 @@ export function estimatedExpenses(
       nome: "Renovação da certidão",
       valor: 100,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Emolumentos variam por estado.",
     },
     {
@@ -100,8 +104,9 @@ export function estimatedExpenses(
       categoria: "Assinatura do contrato",
       nome: "Taxa de contratação Caixa",
       valor: 750,
-      fonte: "Valor informado para esta estimativa",
-      observacao: "Confirme na tabela de tarifas vigente da Caixa.",
+      fonte: "Caixa Habitação",
+      fonteUrl: "https://www.caixa.gov.br/voce/habitacao/construcao/Paginas/default.aspx",
+      observacao: "Valor solicitado como referência; confirme na tabela vigente.",
     },
     {
       id: "relacionamento",
@@ -125,6 +130,7 @@ export function estimatedExpenses(
       nome: "Registro de compra e venda",
       valor: terreno * 0.005,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Estimativa de 0,5%; consulte os emolumentos da UF.",
     },
     {
@@ -133,6 +139,7 @@ export function estimatedExpenses(
       nome: "Registro de alienação fiduciária",
       valor: credito * 0.005,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Estimativa de 0,5%; consulte os emolumentos da UF.",
     },
     {
@@ -141,6 +148,7 @@ export function estimatedExpenses(
       nome: "Certidão atualizada",
       valor: 100,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Emolumentos variam por estado.",
     },
     {
@@ -179,6 +187,7 @@ export function estimatedExpenses(
       nome: "INSS da obra",
       valor: 0,
       fonte: "Receita Federal — CNO/Sero",
+      fonteUrl: "https://www.gov.br/receitafederal/pt-br/assuntos/construcao-civil",
       observacao: "Depende da aferição da obra; confirme com contador.",
     },
     {
@@ -187,6 +196,7 @@ export function estimatedExpenses(
       nome: "Averbação da construção",
       valor: credito * 0.003,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Estimativa de 0,3%; consulte os emolumentos da UF.",
     },
     {
@@ -195,9 +205,13 @@ export function estimatedExpenses(
       nome: "Certidão atualizada",
       valor: 100,
       fonte: "RI Digital — tabela estadual",
+      fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx",
       observacao: "Emolumentos variam por estado.",
     },
   ];
+  return objetivo === "morar"
+    ? expenses.filter((item) => !item.id.startsWith("honorarios-"))
+    : expenses;
 }
 
 export function calculate(input: SimulationInput) {

@@ -141,16 +141,7 @@ function Wizard() {
     () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, objetivo),
     [terreno, credito, projetos, administracao, honorarios, objetivo],
   );
-  useEffect(
-    () =>
-      setDespesas((current) =>
-        estimates.map((next) => {
-          const previous = current.find((item) => item.id === next.id);
-          return previous && previous.valor !== 0 ? { ...next, valor: previous.valor } : next;
-        }),
-      ),
-    [estimates],
-  );
+  useEffect(() => setDespesas(estimates), [estimates]);
   const result = useMemo(
     () =>
       calculate({
@@ -578,7 +569,12 @@ function ExpenseDialog({
                       <div>
                         <Label htmlFor={item.id}>{item.nome}</Label>
                         <p className="mt-1 text-xs text-muted-foreground">{item.observacao}</p>
-                        <p className="mt-1 text-xs text-secondary">Fonte: {item.fonte}</p>
+                        <p className="mt-1 text-xs text-secondary">
+                          Fonte:{" "}
+                          {item.fonteUrl ? (
+                            <a className="underline underline-offset-2" href={item.fonteUrl} target="_blank" rel="noreferrer">{item.fonte}</a>
+                          ) : item.fonte}
+                        </p>
                       </div>
                       <NumericInput
                         id={item.id}
