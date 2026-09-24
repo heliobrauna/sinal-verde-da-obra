@@ -14,6 +14,8 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedSimulacaoRouteImport } from './routes/_authenticated/simulacao.'
+import { Route as AuthenticatedSimulacaoNovaRouteImport } from './routes/_authenticated/simulacao.nova'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,18 +41,33 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSimulacaoRoute = AuthenticatedSimulacaoRouteImport.update({
+  id: '/simulacao/',
+  path: '/simulacao/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSimulacaoNovaRoute =
+  AuthenticatedSimulacaoNovaRouteImport.update({
+    id: '/simulacao/nova',
+    path: '/simulacao/nova',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cadastro': typeof CadastroRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/simulacao/': typeof AuthenticatedSimulacaoRoute
+  '/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cadastro': typeof CadastroRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/simulacao': typeof AuthenticatedSimulacaoRoute
+  '/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +76,26 @@ export interface FileRoutesById {
   '/cadastro': typeof CadastroRoute
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/simulacao/': typeof AuthenticatedSimulacaoRoute
+  '/_authenticated/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/cadastro' | '/login' | '/dashboard'
+  fullPaths:
+    | '/'
+    | '/cadastro'
+    | '/login'
+    | '/dashboard'
+    | '/simulacao/'
+    | '/simulacao/nova'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/cadastro' | '/login' | '/dashboard'
+  to:
+    | '/'
+    | '/cadastro'
+    | '/login'
+    | '/dashboard'
+    | '/simulacao'
+    | '/simulacao/nova'
   id:
     | '__root__'
     | '/'
@@ -72,6 +103,8 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/login'
     | '/_authenticated/dashboard'
+    | '/_authenticated/simulacao/'
+    | '/_authenticated/simulacao/nova'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,15 +151,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/simulacao/': {
+      id: '/_authenticated/simulacao/'
+      path: '/simulacao'
+      fullPath: '/simulacao/'
+      preLoaderRoute: typeof AuthenticatedSimulacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/simulacao/nova': {
+      id: '/_authenticated/simulacao/nova'
+      path: '/simulacao/nova'
+      fullPath: '/simulacao/nova'
+      preLoaderRoute: typeof AuthenticatedSimulacaoNovaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedSimulacaoRoute: typeof AuthenticatedSimulacaoRoute
+  AuthenticatedSimulacaoNovaRoute: typeof AuthenticatedSimulacaoNovaRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedSimulacaoRoute: AuthenticatedSimulacaoRoute,
+  AuthenticatedSimulacaoNovaRoute: AuthenticatedSimulacaoNovaRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
