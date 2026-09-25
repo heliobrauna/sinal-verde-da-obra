@@ -232,15 +232,15 @@ function Wizard() {
     }
     nav({ to: "/simulacao/$id", params: { id: data.id } });
   }
-  const field = (label: string, value: number, set: (n: number) => void, decimals = 2) => (
+  const field = (label: string, value: number, set: (n: number) => void, monetary = true) => (
     <div>
       <Label>{label}</Label>
       <NumericInput
         className="mt-2 h-11"
         min="0"
         value={value}
-        decimals={decimals}
-        monetary
+        decimals={2}
+        monetary={monetary}
         onValueChange={set}
       />
     </div>
@@ -352,7 +352,7 @@ function Wizard() {
                       </p>
                     )}
                   </div>
-                  {field("Juros nominais (% - simulador Caixa)", juros, setJuros)}
+                  {field("Juros nominais (% - simulador Caixa)", juros, setJuros, false)}
                 </div>
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
@@ -394,6 +394,7 @@ function Wizard() {
                         <NumericInput
                           value={x.valor}
                           placeholder="Valor"
+                          monetary
                           onValueChange={(value) =>
                             setExtras(extras.map((a, j) => (j === i ? { ...a, valor: value } : a)))
                           }
@@ -477,7 +478,7 @@ function Wizard() {
                       <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
                     </div>
                     {field("Honorários desejados", honorarios, setHonorarios)}
-                    {field("Prazo até a venda (meses)", prazo, setPrazo)}
+                    {field("Prazo até a venda (meses)", prazo, setPrazo, false)}
                     <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
@@ -497,7 +498,10 @@ function Wizard() {
                       <p className="text-sm text-muted-foreground">Despesas adicionais estimadas</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.despesasTotal)}</p>
                     </div>
-                    <ExpenseDialog despesas={despesas} onChange={(items) => setExpenseOverrides(Object.fromEntries(items.map((item) => [item.id, item.valor])))} />
+                    <ExpenseDialog despesas={despesas} onChange={(items) => setExpenseOverrides(Object.fromEntries(items.flatMap((item) => {
+                      const estimated = estimates.find((candidate) => candidate.id === item.id);
+                      return estimated && estimated.valor !== item.valor ? [[item.id, item.valor]] : [];
+                    })))} />
                   </div>
                   <p className="mt-3 flex gap-2 text-xs text-muted-foreground">
                     <Info className="size-4 shrink-0" />
@@ -590,6 +594,7 @@ function ExpenseDialog({
                         id={item.id}
                         aria-label={`Valor de ${item.nome}`}
                         value={item.valor}
+                        monetary
                         onValueChange={(value) =>
                           onChange(
                             despesas.map((x) => (x.id === item.id ? { ...x, valor: value } : x)),

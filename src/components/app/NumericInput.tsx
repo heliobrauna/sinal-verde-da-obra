@@ -40,8 +40,11 @@ export function NumericInput({
   ...props
 }: NumericInputProps) {
   const [display, setDisplay] = useState(() => format(value, decimals));
+  const [focused, setFocused] = useState(false);
 
-  useEffect(() => setDisplay(format(value, decimals)), [value, decimals]);
+  useEffect(() => {
+    if (!focused) setDisplay(format(value, decimals));
+  }, [value, decimals, focused]);
 
   return (
     <Input
@@ -50,15 +53,17 @@ export function NumericInput({
       inputMode="decimal"
       value={display}
       onFocus={(event) => {
+        setFocused(true);
         setDisplay(value ? format(value, decimals) : "");
         onFocus?.(event);
       }}
       onChange={(event) => {
         const parsed = parse(event.target.value, decimals, monetary);
-        setDisplay(event.target.value ? format(parsed, decimals) : "");
+        setDisplay(event.target.value);
         onValueChange(parsed);
       }}
       onBlur={(event) => {
+        setFocused(false);
         setDisplay(format(parse(event.target.value, decimals, monetary), decimals));
         onBlur?.(event);
       }}
