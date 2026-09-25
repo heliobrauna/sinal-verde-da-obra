@@ -14,3 +14,8 @@
 - [x] Pré-preencher sugestões de custos fora do CUB
 - [x] Criar despesas adicionais estimadas, editáveis e detalhadas com fontes
 - [x] Atualizar cálculos, persistência, resultado e validar os fluxos
+- [ ] Exibir faixa de área viável para BDI de 0% a 18%
+- [ ] Corrigir edição dos custos fora do CUB e iniciar por Muro
+- [ ] Calcular venda por custos, lucro em reais e corretagem
+- [ ] Preencher despesas estimáveis com referências públicas
+- [ ] Validar os novos cálculos e a digitação em computador e celular

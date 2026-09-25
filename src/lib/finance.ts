@@ -16,10 +16,10 @@ export type ClientExpense = {
 export type SimulationInput = {
   credito: number;
   cub: number;
-  bdi: number;
   extras: Extra[];
   objetivo: "morar" | "vender";
-  valorVenda: number;
+  lucro: number;
+  corretagem: number;
   prazo: number;
   juros: number;
   stages: Stage[];
@@ -33,12 +33,25 @@ export function estimatedExpenses(
   administracao: number,
   honorarios: number,
   objetivo: "morar" | "vender",
+  cub: number,
+  area: number,
 ): ClientExpense[] {
   const fees = objetivo === "vender" ? honorarios : 0;
   const common = {
     fonte: "Estimativa editável",
     observacao: "Confirme o valor real antes da contratação.",
   };
+  const areaAte100 = Math.min(area, 100);
+  const areaAte200 = Math.min(Math.max(area - 100, 0), 100);
+  const areaAte300 = Math.min(Math.max(area - 200, 0), 100);
+  const areaAcima300 = Math.max(area - 300, 0);
+  const remuneracaoEstimada = cub * (
+    areaAte100 * 0.04 +
+    areaAte200 * 0.08 +
+    areaAte300 * 0.14 +
+    areaAcima300 * 0.2
+  );
+  const inssEstimado = remuneracaoEstimada * 0.368;
   const expenses: ClientExpense[] = [
     {
       id: "honorarios-entrada",
@@ -185,10 +198,10 @@ export function estimatedExpenses(
       id: "inss",
       categoria: "Durante a obra",
       nome: "INSS da obra",
-      valor: 0,
-      fonte: "Receita Federal — CNO/Sero",
-      fonteUrl: "https://www.gov.br/receitafederal/pt-br/assuntos/construcao-civil",
-      observacao: "Depende da aferição da obra; confirme com contador.",
+      valor: inssEstimado,
+      fonte: "Receita Federal — Manual do Sero",
+      fonteUrl: "https://www.gov.br/receitafederal/pt-br/assuntos/construcao-civil/sero/manual-do-sero",
+      observacao: "Estimativa preliminar por área e CUB; o valor oficial depende da aferição no CNO/Sero e dos créditos comprovados.",
     },
     {
       id: "averbacao",
@@ -223,23 +236,33 @@ export function calculate(input: SimulationInput) {
     0,
     input.credito - extrasTotal - despesasTotal - contingencia - jurosObra,
   );
-  const custoM2 = input.cub * (1 + input.bdi / 100);
-  const areaViavel = custoM2 > 0 ? disponivel / custoM2 : 0;
-  const custoObra = areaViavel * custoM2 + extrasTotal + despesasTotal
+  const custoM2Minimo = input.cub;
+  const custoM2Maximo = input.cub * 1.18;
+  const areaViavelMaxima = custoM2Minimo > 0 ? disponivel / custoM2Minimo : 0;
+  const areaViavelMinima = custoM2Maximo > 0 ? disponivel / custoM2Maximo : 0;
+  const areaViavel = areaViavelMinima;
+  const custoM2 = custoM2Maximo;
+  const custoObra = areaViavel * custoM2 + extrasTotal + despesasTotal;
+  const custoTotal = custoObra + jurosObra;
+  const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
+  const valorVenda = input.objetivo === "vender"
+    ? (custoTotal + input.lucro) / (1 - taxaCorretagem)
+    : input.credito;
   const cenarios = [-0.15, 0, 0.15].map((ajuste, i) => ({
     nome: ["Pessimista", "Realista", "Otimista"][i],
     ajuste,
-    venda:
-      input.objetivo === "vender" ? input.valorVenda * (1 + ajuste) : input.credito * (1 + ajuste),
+    venda: valorVenda * (1 + ajuste),
+    corretagem: valorVenda * (1 + ajuste) * taxaCorretagem,
     saldo:
-      (input.objetivo === "vender"
-        ? input.valorVenda * (1 + ajuste)
-        : input.credito * (1 + ajuste)) -
+      valorVenda * (1 + ajuste) -
+      valorVenda * (1 + ajuste) * taxaCorretagem -
       custoObra -
       jurosObra,
   }));
   return {
     areaViavel,
+    areaViavelMinima,
+    areaViavelMaxima,
     custoM2,
     extrasTotal,
     despesasTotal,
@@ -247,7 +270,12 @@ export function calculate(input: SimulationInput) {
     contingencia,
     disponivel,
     custoObra,
+    custoTotal,
     jurosObra,
+    valorVenda,
+    corretagemPercentual: input.corretagem,
+    corretagemValor: valorVenda * taxaCorretagem,
+    lucroDesejado: input.lucro,
     cenarios,
     cronograma: input.stages.map((s) => ({ ...s, valor: (input.credito * s.percentual) / 100 })),
   };

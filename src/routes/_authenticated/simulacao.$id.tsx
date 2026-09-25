@@ -20,6 +20,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { ArrowLeft, CheckCircle2, TrendingDown, Minus, TrendingUp, Trash2 } from "lucide-react";
 type R = {
   areaViavel: number;
+  areaViavelMinima?: number;
+  areaViavelMaxima?: number;
   custoM2: number;
   contingencia: number;
   extrasTotal: number;
@@ -28,6 +30,10 @@ type R = {
   cubReferencia?: { competencia: string; projeto: string; origem: string };
   cenarios: { nome: string; saldo: number }[];
   cronograma: { nome: string; percentual: number; valor: number }[];
+  valorVenda?: number;
+  corretagemPercentual?: number;
+  corretagemValor?: number;
+  lucroDesejado?: number;
 };
 export const Route = createFileRoute("/_authenticated/simulacao/$id")({
   head: () => ({
@@ -122,10 +128,9 @@ function Result() {
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <Card className="border-primary/30 md:col-span-2">
           <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">Área construída viável</p>
-            <p className="mt-2 text-5xl font-bold text-primary">
-              {NUMBER.format(r.areaViavel)} <span className="text-2xl">m²</span>
-            </p>
+            <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
+            <p className="mt-2 text-3xl font-bold text-primary">{NUMBER.format(r.areaViavelMinima ?? r.areaViavel)} a {NUMBER.format(r.areaViavelMaxima ?? r.areaViavel)} <span className="text-xl">m²</span></p>
+            <p className="mt-2 text-xs text-muted-foreground">BDI de 18% a 0%</p>
           </CardContent>
         </Card>
         {[
@@ -140,6 +145,13 @@ function Result() {
           </Card>
         ))}
       </section>
+      {item.objetivo === "vender" && r.valorVenda !== undefined && (
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          {[['Valor estimado de venda', r.valorVenda], ['Lucro desejado', r.lucroDesejado ?? 0], [`Corretagem (${NUMBER.format(r.corretagemPercentual ?? 0)}%)`, r.corretagemValor ?? 0]].map(([label, value]) => (
+            <Card key={String(label)}><CardContent className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{BRL.format(Number(value))}</p></CardContent></Card>
+          ))}
+        </section>
+      )}
       <section className="mt-10">
         <h2 className="text-xl font-semibold">Três cenários</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">

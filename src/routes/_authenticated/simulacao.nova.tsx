@@ -47,6 +47,7 @@ const stages: Stage[] = [
   ["Acabamento", 10],
 ].map(([nome, percentual]) => ({ nome: String(nome), percentual: Number(percentual) }));
 const suggestions = [
+  "Muro",
   "Piscina",
   "Paisagismo",
   "Cerca elétrica",
@@ -121,42 +122,48 @@ function Wizard() {
   const [padrao, setPadrao] = useState<"baixo" | "normal" | "alto">("normal");
   const [cubRef, setCubRef] = useState<CubReference | null>(null);
   const [cubLoading, setCubLoading] = useState(false);
-  const [bdi, setBdi] = useState(18);
   const [juros, setJuros] = useState(0.8);
   const [extras, setExtras] = useState<Extra[]>(
     suggestions.map((descricao) => ({ descricao, valor: 0 })),
   );
   const [cronograma, setCronograma] = useState(stages);
   const [objetivo, setObjetivo] = useState<"morar" | "vender">("morar");
-  const [venda, setVenda] = useState(0);
   const [lucro, setLucro] = useState(0);
+  const [corretagem, setCorretagem] = useState(5);
   const [prazo, setPrazo] = useState(12);
   const [projetos, setProjetos] = useState(0);
   const [administracao, setAdministracao] = useState(0);
   const [honorarios, setHonorarios] = useState(0);
-  const [despesas, setDespesas] = useState<ClientExpense[]>([]);
+  const [expenseOverrides, setExpenseOverrides] = useState<Record<string, number>>({});
   const [erro, setErro] = useState("");
   const cub = cubRef?.valor ?? 0;
-  const estimates = useMemo(
-    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, objetivo),
-    [terreno, credito, projetos, administracao, honorarios, objetivo],
+  const baseResult = useMemo(
+    () => calculate({ credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, stages: cronograma, despesas: [] }),
+    [credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, cronograma],
   );
-  useEffect(() => setDespesas(estimates), [estimates]);
+  const estimates = useMemo(
+    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, objetivo, cub, baseResult.areaViavelMaxima),
+    [terreno, credito, projetos, administracao, honorarios, objetivo, cub, baseResult.areaViavelMaxima],
+  );
+  const despesas = useMemo(
+    () => estimates.map((item) => ({ ...item, valor: expenseOverrides[item.id] ?? item.valor })),
+    [estimates, expenseOverrides],
+  );
   const result = useMemo(
     () =>
       calculate({
         credito,
         cub,
-        bdi,
         extras,
         objetivo,
-        valorVenda: venda,
+        lucro,
+        corretagem,
         prazo,
         juros,
         stages: cronograma,
         despesas,
       }),
-    [credito, cub, bdi, extras, objetivo, venda, prazo, juros, cronograma, despesas],
+    [credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, cronograma, despesas],
   );
   useEffect(() => {
     let active = true;
@@ -181,12 +188,8 @@ function Wizard() {
       setErro("Informe a renda e o valor financiado para continuar.");
       return;
     }
-    if (step === 2 && (!cub || bdi < 0 || bdi > 18)) {
-      setErro(
-        cub
-          ? "Informe um BDI entre 0% e 18%."
-          : "Ainda não há uma referência de CUB para esta seleção.",
-      );
+    if (step === 2 && !cub) {
+      setErro("Ainda não há uma referência de CUB para esta seleção.");
       return;
     }
     if (step === 3 && cronograma.reduce((s, x) => s + x.percentual, 0) !== 100) {
@@ -213,7 +216,7 @@ function Wizard() {
         estado,
         padrao_acabamento: padrao,
         cub_valor_m2: cub,
-        bdi_percentual: bdi,
+        bdi_percentual: 18,
         custos_extras: extras,
         objetivo,
         lucro_desejado: objetivo === "vender" ? lucro : null,
@@ -237,6 +240,7 @@ function Wizard() {
         min="0"
         value={value}
         decimals={decimals}
+        monetary
         onValueChange={set}
       />
     </div>
@@ -348,14 +352,14 @@ function Wizard() {
                       </p>
                     )}
                   </div>
-                  {field("BDI (%)", bdi, setBdi)}
                   {field("Juros nominais (% - simulador Caixa)", juros, setJuros)}
                 </div>
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-5">
-                  <p className="text-sm text-muted-foreground">Área construída viável estimada</p>
-                  <p className="mt-1 text-3xl font-bold text-primary">
-                    {result.areaViavel.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m²
-                  </p>
+                  <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div><p className="text-xs text-muted-foreground">Mínima · BDI 18%</p><p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p></div>
+                    <div><p className="text-xs text-muted-foreground">Máxima · BDI 0%</p><p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p></div>
+                  </div>
                 </div>
                 <div className="border-t pt-6">
                   <div className="flex items-center justify-between">
@@ -374,7 +378,7 @@ function Wizard() {
                     {extras.map((x, i) => (
                       <div
                         className="grid grid-cols-[minmax(0,1fr)_120px_36px] gap-2"
-                        key={`${x.descricao}-${i}`}
+                        key={i}
                       >
                         <Input
                           value={x.descricao}
@@ -416,7 +420,7 @@ function Wizard() {
             {step === 3 && (
               <div>
                 <p className="mb-6 text-sm text-muted-foreground">
-                  Ajuste os percentuais. A soma deve fechar em 100%.
+                  Percentuais sugeridos pelo método Sinal Verde. A soma deve fechar em 100%.
                 </p>
                 <div className="space-y-3">
                   {cronograma.map((s, i) => (
@@ -424,7 +428,7 @@ function Wizard() {
                       <Label>{s.nome}</Label>
                       <NumericInput
                         value={s.percentual}
-                        decimals={0}
+                        decimals={2}
                         onValueChange={(value) =>
                           setCronograma(
                             cronograma.map((a, j) => (j === i ? { ...a, percentual: value } : a)),
@@ -467,10 +471,18 @@ function Wizard() {
                 </div>
                 {objetivo === "vender" && (
                   <>
-                    {field("Valor estimado de venda", venda, setVenda)}
                     {field("Lucro desejado", lucro, setLucro)}
+                    <div>
+                      <Label>Corretagem (%)</Label>
+                      <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
+                    </div>
                     {field("Honorários desejados", honorarios, setHonorarios)}
-                    {field("Prazo até a venda (meses)", prazo, setPrazo, 0)}
+                    {field("Prazo até a venda (meses)", prazo, setPrazo)}
+                    <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
+                      <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
+                      <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Inclui os custos calculados, o lucro desejado e {corretagem.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de corretagem.</p>
+                    </div>
                   </>
                 )}
                 {field("Projetos", projetos, setProjetos)}
@@ -485,7 +497,7 @@ function Wizard() {
                       <p className="text-sm text-muted-foreground">Despesas adicionais estimadas</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.despesasTotal)}</p>
                     </div>
-                    <ExpenseDialog despesas={despesas} onChange={setDespesas} />
+                    <ExpenseDialog despesas={despesas} onChange={(items) => setExpenseOverrides(Object.fromEntries(items.map((item) => [item.id, item.valor])))} />
                   </div>
                   <p className="mt-3 flex gap-2 text-xs text-muted-foreground">
                     <Info className="size-4 shrink-0" />
@@ -493,10 +505,8 @@ function Wizard() {
                   </p>
                 </div>
                 <div className="md:col-span-2 rounded-lg border border-primary/20 bg-primary/5 p-5">
-                  <p className="text-sm text-muted-foreground">Área construída viável estimada</p>
-                  <p className="mt-1 text-3xl font-bold text-primary">
-                    {result.areaViavel.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m²
-                  </p>
+                  <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a {result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
                 </div>
               </div>
             )}
