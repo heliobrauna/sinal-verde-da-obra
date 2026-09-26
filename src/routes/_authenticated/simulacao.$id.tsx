@@ -34,6 +34,8 @@ type R = {
   corretagemPercentual?: number;
   corretagemValor?: number;
   lucroDesejado?: number;
+  administracao?: number;
+  honorarios?: number;
 };
 export const Route = createFileRoute("/_authenticated/simulacao/$id")({
   head: () => ({
@@ -145,9 +147,18 @@ function Result() {
           </Card>
         ))}
       </section>
+      <section className="mt-8 grid gap-4 md:grid-cols-3">
+        {[
+          [item.objetivo === "morar" ? 'Remuneração ou margem do responsável' : 'Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
+          ['Honorários desejados', r.despesas?.filter((x) => x.id === 'honorarios-entrada' || x.id === 'honorarios-saldo').reduce((sum, x) => sum + x.valor, 0) ?? r.honorarios ?? 0],
+          ['Administração do processo', r.despesas?.find((x) => x.id === 'administracao')?.valor ?? r.administracao ?? 0],
+        ].map(([label, value]) => (
+          <Card key={String(label)}><CardContent className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{BRL.format(Number(value))}</p></CardContent></Card>
+        ))}
+      </section>
       {item.objetivo === "vender" && r.valorVenda !== undefined && (
         <section className="mt-8 grid gap-4 md:grid-cols-3">
-          {[['Valor estimado de venda', r.valorVenda], ['Lucro desejado', r.lucroDesejado ?? 0], [`Corretagem (${NUMBER.format(r.corretagemPercentual ?? 0)}%)`, r.corretagemValor ?? 0]].map(([label, value]) => (
+          {[['Valor estimado de venda', r.valorVenda], [`Corretagem (${NUMBER.format(r.corretagemPercentual ?? 0)}%)`, r.corretagemValor ?? 0]].map(([label, value]) => (
             <Card key={String(label)}><CardContent className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{BRL.format(Number(value))}</p></CardContent></Card>
           ))}
         </section>

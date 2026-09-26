@@ -142,8 +142,8 @@ function Wizard() {
     [credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, cronograma],
   );
   const estimates = useMemo(
-    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, objetivo, cub, baseResult.areaViavelMaxima),
-    [terreno, credito, projetos, administracao, honorarios, objetivo, cub, baseResult.areaViavelMaxima],
+    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima),
+    [terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima],
   );
   const despesas = useMemo(
     () => estimates.map((item) => ({ ...item, valor: expenseOverrides[item.id] ?? item.valor })),
@@ -219,7 +219,7 @@ function Wizard() {
         bdi_percentual: 18,
         custos_extras: extras,
         objetivo,
-        lucro_desejado: objetivo === "vender" ? lucro : null,
+        lucro_desejado: lucro,
         prazo_venda_meses: objetivo === "vender" ? prazo : null,
         taxa_juros_obra_mensal: juros,
         resultado: payloadResult,
@@ -470,28 +470,29 @@ function Wizard() {
                     ))}
                   </div>
                 </div>
-                {objetivo === "vender" && (
-                  <>
-                    {field("Lucro desejado", lucro, setLucro)}
-                    <div>
-                      <Label>Corretagem (%)</Label>
-                      <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
-                    </div>
-                    {field("Honorários desejados", honorarios, setHonorarios)}
-                    {field("Prazo até a venda (meses)", prazo, setPrazo, false)}
-                    <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
-                      <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
-                      <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">Inclui os custos calculados, o lucro desejado e {corretagem.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de corretagem.</p>
-                    </div>
-                  </>
-                )}
+                {field(objetivo === "morar" ? "Remuneração ou margem do responsável" : "Lucro desejado", lucro, setLucro)}
+                {field("Honorários desejados", honorarios, setHonorarios)}
                 {field("Projetos", projetos, setProjetos)}
                 {field(
                   "Administração do processo (sem acompanhamento de obra)",
                   administracao,
                   setAdministracao,
                 )}
+                {objetivo === "vender" && (
+                  <>
+                    <div>
+                      <Label>Corretagem (%)</Label>
+                      <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
+                    </div>
+                    {field("Prazo até a venda (meses)", prazo, setPrazo, false)}
+                    <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
+                      <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
+                      <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Inclui os custos calculados, o lucro desejado e {corretagem.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de corretagem. Honorários e administração já estão nas despesas adicionais.</p>
+                    </div>
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground md:col-span-2">A margem é reservada no cálculo da área viável. Honorários e administração entram uma única vez nas despesas adicionais.</p>
                 <div className="md:col-span-2 rounded-lg border p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>

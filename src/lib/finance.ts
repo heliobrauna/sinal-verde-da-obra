@@ -32,11 +32,9 @@ export function estimatedExpenses(
   projetos: number,
   administracao: number,
   honorarios: number,
-  objetivo: "morar" | "vender",
   cub: number,
   area: number,
 ): ClientExpense[] {
-  const fees = objetivo === "vender" ? honorarios : 0;
   const common = {
     fonte: "Estimativa editável",
     observacao: "Confirme o valor real antes da contratação.",
@@ -57,7 +55,7 @@ export function estimatedExpenses(
       id: "honorarios-entrada",
       categoria: "Despesas iniciais",
       nome: "Honorários — entrada (30%)",
-      valor: fees * 0.3,
+      valor: honorarios * 0.3,
       fonte: "Condição informada pelo responsável técnico",
       observacao: "30% dos honorários desejados.",
     },
@@ -168,7 +166,7 @@ export function estimatedExpenses(
       id: "honorarios-saldo",
       categoria: "Durante a obra",
       nome: "Honorários — restante (70%)",
-      valor: fees * 0.7,
+      valor: honorarios * 0.7,
       fonte: "Condição informada pelo responsável técnico",
       observacao: "70% dos honorários desejados.",
     },
@@ -222,9 +220,7 @@ export function estimatedExpenses(
       observacao: "Emolumentos variam por estado.",
     },
   ];
-  return objetivo === "morar"
-    ? expenses.filter((item) => !item.id.startsWith("honorarios-"))
-    : expenses;
+  return expenses;
 }
 
 export function calculate(input: SimulationInput) {
@@ -234,7 +230,7 @@ export function calculate(input: SimulationInput) {
   const jurosObra = input.credito * (input.juros / 100);
   const disponivel = Math.max(
     0,
-    input.credito - extrasTotal - despesasTotal - contingencia - jurosObra,
+    input.credito - extrasTotal - despesasTotal - contingencia - jurosObra - input.lucro,
   );
   const custoM2Minimo = input.cub;
   const custoM2Maximo = input.cub * 1.18;
