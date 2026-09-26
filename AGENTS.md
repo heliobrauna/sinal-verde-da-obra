@@ -11,3 +11,4 @@
 
 - Keep viability as a BDI 18%–0% area range; persist 18% only as the conservative legacy database value, because users no longer choose BDI.
 - For sale simulations, derive the asking price as `(total costs + desired profit in BRL) / (1 - brokerage rate)`, because profit is a currency target and brokerage must be covered by the sale.
+- Reserve desired profit/remuneration from buildable credit in both goals, but add it only once to the sale price; honoraria and administration flow through the expense breakdown so they are never added again to total costs.

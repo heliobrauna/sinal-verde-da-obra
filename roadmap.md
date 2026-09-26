@@ -19,3 +19,5 @@
 - [x] Calcular venda por custos, lucro em reais e corretagem
 - [x] Preencher despesas estimáveis com referências públicas
 - [x] Validar os novos cálculos e a digitação em computador e celular
+- [ ] Considerar lucro, honorários e administração nas modalidades morar e vender, sem duplicar custos
+- [ ] Conferir o resultado e os cálculos das duas modalidades
