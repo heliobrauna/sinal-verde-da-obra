@@ -21,3 +21,7 @@
 - [x] Validar os novos cálculos e a digitação em computador e celular
 - [x] Considerar lucro, honorários e administração nas modalidades morar e vender, sem duplicar custos
 - [x] Conferir o resultado e os cálculos das duas modalidades
+- [ ] Substituir o custo por CUB/BDI pelo custo real por m² (mão de obra + materiais), mantendo CUB como referência
+- [ ] Permitir editar e recalcular simulações existentes
+- [ ] Diferenciar o resumo para morar e os cenários de venda com prazo e divisão com investidor
+- [ ] Validar cálculos, salvamento e apresentação; deixar fluxo de caixa mensal para depois
