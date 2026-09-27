@@ -17,18 +17,30 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { BRL, NUMBER, type ClientExpense } from "@/lib/finance";
 import type { Tables } from "@/integrations/supabase/types";
-import { ArrowLeft, CheckCircle2, TrendingDown, Minus, TrendingUp, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, TrendingDown, Minus, TrendingUp, Trash2, Pencil } from "lucide-react";
 type R = {
   areaViavel: number;
   areaViavelMinima?: number;
   areaViavelMaxima?: number;
   custoM2: number;
+  maoDeObra?: number;
+  materiais?: number;
+  cubReferenciaValor?: number;
+  cubMaisDez?: number;
+  custoConstrucao?: number;
+  custoTotal?: number;
+  jurosPosObra?: number;
+  parcelasEstimadas?: number;
+  amortizacaoEstimada?: number;
+  mesesAposObra?: number;
+  capitalInvestidor?: number;
+  participacaoInvestidor?: number;
   contingencia: number;
   extrasTotal: number;
   despesasTotal?: number;
   despesas?: ClientExpense[];
   cubReferencia?: { competencia: string; projeto: string; origem: string };
-  cenarios: { nome: string; saldo: number }[];
+  cenarios: { nome: string; saldo: number; venda?: number; lucroConstrutor?: number; lucroInvestidor?: number; rentabilidadeInvestidor?: number | null }[];
   cronograma: { nome: string; percentual: number; valor: number }[];
   valorVenda?: number;
   corretagemPercentual?: number;
@@ -82,7 +94,7 @@ function Result() {
             Voltar
           </Link>
         </Button>
-        <AlertDialog>
+        <div className="flex items-center gap-2"><Button asChild variant="outline"><Link to="/simulacao/nova" search={{ editar: id }}><Pencil className="size-4" />Editar</Link></Button><AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="ghost" className="text-destructive">
               <Trash2 />
@@ -106,7 +118,7 @@ function Result() {
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
+        </AlertDialog></div>
       </div>
       <div className="mt-5 flex flex-wrap items-start justify-between gap-5">
         <div>
@@ -130,13 +142,13 @@ function Result() {
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <Card className="border-primary/30 md:col-span-2">
           <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
-            <p className="mt-2 text-3xl font-bold text-primary">{NUMBER.format(r.areaViavelMinima ?? r.areaViavel)} a {NUMBER.format(r.areaViavelMaxima ?? r.areaViavel)} <span className="text-xl">m²</span></p>
-            <p className="mt-2 text-xs text-muted-foreground">BDI de 18% a 0%</p>
+            <p className="text-sm text-muted-foreground">{r.maoDeObra !== undefined ? "Área construída viável · custo real" : "Faixa de área construída viável"}</p>
+            <p className="mt-2 text-3xl font-bold text-primary">{r.maoDeObra !== undefined ? NUMBER.format(r.areaViavel) : `${NUMBER.format(r.areaViavelMinima ?? r.areaViavel)} a ${NUMBER.format(r.areaViavelMaxima ?? r.areaViavel)}`} <span className="text-xl">m²</span></p>
+            {r.maoDeObra === undefined && <p className="mt-2 text-xs text-muted-foreground">BDI de 18% a 0% · cálculo anterior</p>}
           </CardContent>
         </Card>
         {[
-          ["Custo por m²", r.custoM2],
+          [r.maoDeObra !== undefined ? "Custo real por m²" : "Custo por m²", r.custoM2],
           ["Reserva de 20%", r.contingencia],
         ].map(([k, v]) => (
           <Card key={String(k)}>
@@ -147,15 +159,16 @@ function Result() {
           </Card>
         ))}
       </section>
-      <section className="mt-8 grid gap-4 md:grid-cols-3">
+      {r.maoDeObra !== undefined && <section className="mt-5 grid gap-3 border-y py-5 text-sm sm:grid-cols-3"><p>Mão de obra: <strong>{BRL.format(r.maoDeObra)}</strong>/m²</p><p>Materiais: <strong>{BRL.format(r.materiais ?? 0)}</strong>/m²</p><p>{(r.cubReferenciaValor ?? item.cub_valor_m2) > 0 ? <>CUB publicado: <strong>{BRL.format(r.cubReferenciaValor ?? item.cub_valor_m2)}</strong>/m² · +10%: {BRL.format(r.cubMaisDez ?? item.cub_valor_m2 * 1.1)}</> : "CUB publicado indisponível"}</p><p className="text-xs text-muted-foreground sm:col-span-3">O CUB é apenas referência comparativa; não garante aprovação do banco.</p></section>}
+      {item.objetivo === "vender" && <section className="mt-8 grid gap-4 md:grid-cols-3">
         {[
-          [item.objetivo === "morar" ? 'Remuneração ou margem do responsável' : 'Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
+          ['Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
           ['Honorários desejados', r.despesas?.filter((x) => x.id === 'honorarios-entrada' || x.id === 'honorarios-saldo').reduce((sum, x) => sum + x.valor, 0) ?? r.honorarios ?? 0],
           ['Administração do processo', r.despesas?.find((x) => x.id === 'administracao')?.valor ?? r.administracao ?? 0],
         ].map(([label, value]) => (
           <Card key={String(label)}><CardContent className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{BRL.format(Number(value))}</p></CardContent></Card>
         ))}
-      </section>
+      </section>}
       {item.objetivo === "vender" && r.valorVenda !== undefined && (
         <section className="mt-8 grid gap-4 md:grid-cols-3">
           {[['Valor estimado de venda', r.valorVenda], [`Corretagem (${NUMBER.format(r.corretagemPercentual ?? 0)}%)`, r.corretagemValor ?? 0]].map(([label, value]) => (
@@ -163,7 +176,9 @@ function Result() {
           ))}
         </section>
       )}
-      <section className="mt-10">
+      {item.objetivo === "vender" && r.custoTotal !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Composição do preço</h2><p className="mt-2">Construção {BRL.format(r.custoConstrucao ?? 0)} · extras {BRL.format(r.extrasTotal)} · despesas {BRL.format(r.despesasTotal ?? 0)} (projetos, honorários e administração inclusos) · reserva {BRL.format(r.contingencia)} · juros da obra {BRL.format((r.custoTotal ?? 0) - (r.custoConstrucao ?? 0) - r.extrasTotal - (r.despesasTotal ?? 0) - r.contingencia)} · lucro {BRL.format(r.lucroDesejado ?? 0)} · corretagem {BRL.format(r.corretagemValor ?? 0)}</p></section>}
+      {item.objetivo === "vender" && r.mesesAposObra !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Venda e investidor</h2><p className="mt-2">Venda {r.mesesAposObra} mês(es) após conclusão · juros pós-obra estimados {BRL.format(r.jurosPosObra ?? 0)} · parcelas estimadas {BRL.format(r.parcelasEstimadas ?? 0)} · capital do investidor {BRL.format(r.capitalInvestidor ?? 0)} · participação {r.participacaoInvestidor ?? 0}%</p><p className="mt-2 text-xs text-muted-foreground">Estimativa com juros nominais constantes sobre o financiamento e amortização linear ilustrativa em 360 meses. A amortização não é contabilizada como despesa. Confirme as condições do contrato.</p></section>}
+      {item.objetivo === "vender" && <section className="mt-10">
         <h2 className="text-xl font-semibold">Três cenários</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {r.cenarios.map((c, i) => (
@@ -177,20 +192,22 @@ function Result() {
                   <TrendingUp className="text-primary" />
                 )}
                 <p className="mt-5 font-semibold">{c.nome}</p>
+                 {c.venda !== undefined && <p className="mt-2 text-sm">Venda: {BRL.format(c.venda)}</p>}
                 <p className="mt-1 text-xs text-muted-foreground">Saldo final estimado</p>
                 <p
                   className={`mt-3 text-2xl font-bold ${c.saldo >= 0 ? "text-primary" : "text-destructive"}`}
                 >
                   {BRL.format(c.saldo)}
                 </p>
+                {c.lucroConstrutor !== undefined && <div className="mt-3 space-y-1 text-sm text-muted-foreground"><p>Construtor: {BRL.format(c.lucroConstrutor)}</p><p>Investidor: {BRL.format(c.lucroInvestidor ?? 0)}</p><p>Rentabilidade: {c.rentabilidadeInvestidor == null ? "—" : `${NUMBER.format(c.rentabilidadeInvestidor)}%`}</p></div>}
               </CardContent>
             </Card>
           ))}
         </div>
-      </section>
+      </section>}
       <section className="mt-10 grid gap-8 lg:grid-cols-2">
         <div>
-          <h2 className="text-xl font-semibold">Custos fora do CUB</h2>
+          <h2 className="text-xl font-semibold">Custos fora da construção por m²</h2>
           <div className="mt-4 divide-y border-y">
             {(item.custos_extras as unknown as { descricao: string; valor: number }[]).map(
               (x, i) => (

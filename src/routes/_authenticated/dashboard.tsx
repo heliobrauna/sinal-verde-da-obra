@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Calculator, ArrowUpRight, Building2, Trash2 } from "lucide-react";
+import { Calculator, ArrowUpRight, Building2, Trash2, Pencil } from "lucide-react";
 import { NUMBER } from "@/lib/finance";
 import type { Tables } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -59,7 +59,7 @@ function Dashboard() {
           </p>
         </div>
         <Button asChild size="lg">
-          <Link to="/simulacao/nova">
+          <Link to="/simulacao/nova" search={{}}>
             <Calculator />
             Nova simulação
           </Link>
@@ -75,7 +75,7 @@ function Dashboard() {
             Comece pelo valor financiado e descubra uma área segura para construir.
           </p>
           <Button asChild className="mt-6">
-            <Link to="/simulacao/nova">Criar primeira simulação</Link>
+            <Link to="/simulacao/nova" search={{}}>Criar primeira simulação</Link>
           </Button>
         </div>
       ) : (
@@ -93,6 +93,7 @@ function Dashboard() {
                       </p>
                     </div>
                     <div className="flex gap-1">
+                      <Button asChild variant="ghost" size="icon"><Link to="/simulacao/nova" search={{ editar: item.id }} aria-label={`Editar ${item.nome}`} title="Editar simulação"><Pencil className="size-4" /></Link></Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon" aria-label={`Excluir ${item.nome}`}>
