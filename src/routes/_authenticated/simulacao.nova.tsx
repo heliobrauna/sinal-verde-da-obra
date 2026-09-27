@@ -95,6 +95,7 @@ type CubReference = {
 };
 
 export const Route = createFileRoute("/_authenticated/simulacao/nova")({
+  validateSearch: (search: Record<string, unknown>) => ({ editar: typeof search.editar === "string" ? search.editar : undefined }),
   head: () => ({
     meta: [
       { title: "Nova simulação | Sinal Verde da Obra" },
@@ -110,7 +111,9 @@ export const Route = createFileRoute("/_authenticated/simulacao/nova")({
 
 function Wizard() {
   const nav = useNavigate();
+  const { editar } = Route.useSearch();
   const fetchCub = useServerFn(getResidentialCub);
+  const [loadingEdit, setLoadingEdit] = useState(Boolean(editar));
   const [step, setStep] = useState(1);
   const [nome, setNome] = useState("Minha obra");
   const [terreno, setTerreno] = useState(0);
@@ -123,6 +126,8 @@ function Wizard() {
   const [cubRef, setCubRef] = useState<CubReference | null>(null);
   const [cubLoading, setCubLoading] = useState(false);
   const [juros, setJuros] = useState(0.8);
+  const [maoDeObra, setMaoDeObra] = useState(0);
+  const [materiais, setMateriais] = useState(0);
   const [extras, setExtras] = useState<Extra[]>(
     suggestions.map((descricao) => ({ descricao, valor: 0 })),
   );
@@ -130,16 +135,19 @@ function Wizard() {
   const [objetivo, setObjetivo] = useState<"morar" | "vender">("morar");
   const [lucro, setLucro] = useState(0);
   const [corretagem, setCorretagem] = useState(5);
-  const [prazo, setPrazo] = useState(12);
+  const [prazo, setPrazo] = useState(0);
+  const [capitalInvestidor, setCapitalInvestidor] = useState(0);
+  const [participacaoInvestidor, setParticipacaoInvestidor] = useState(0);
   const [projetos, setProjetos] = useState(0);
   const [administracao, setAdministracao] = useState(0);
   const [honorarios, setHonorarios] = useState(0);
   const [expenseOverrides, setExpenseOverrides] = useState<Record<string, number>>({});
   const [erro, setErro] = useState("");
   const cub = cubRef?.valor ?? 0;
+  const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, stages: cronograma, despesas: [] }),
-    [credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, cronograma],
+    () => calculate({ credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, stages: cronograma, despesas: [], capitalInvestidor, participacaoInvestidor }),
+    [credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, cronograma, capitalInvestidor, participacaoInvestidor],
   );
   const estimates = useMemo(
     () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima),
@@ -154,6 +162,8 @@ function Wizard() {
       calculate({
         credito,
         cub,
+        maoDeObra,
+        materiais,
         extras,
         objetivo,
         lucro,
@@ -162,9 +172,34 @@ function Wizard() {
         juros,
         stages: cronograma,
         despesas,
+        capitalInvestidor,
+        participacaoInvestidor,
       }),
-    [credito, cub, extras, objetivo, lucro, corretagem, prazo, juros, cronograma, despesas],
+    [credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, cronograma, despesas, capitalInvestidor, participacaoInvestidor],
   );
+  useEffect(() => {
+    if (!editar) return;
+    let active = true;
+    supabase.from("simulacoes").select("*").eq("id", editar).single().then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data) { setErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
+      const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number };
+      setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
+      setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
+      setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
+      setJuros(data.taxa_juros_obra_mensal); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
+      setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
+      setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
+      setCronograma(saved.cronograma?.map(({ nome, percentual }) => ({ nome, percentual })) ?? stages);
+      setObjetivo(data.objetivo as "morar" | "vender"); setLucro(data.lucro_desejado ?? 0);
+      setCorretagem(saved.corretagemPercentual ?? 5); setPrazo(saved.mesesAposObra ?? data.prazo_venda_meses ?? 0);
+      setCapitalInvestidor(saved.capitalInvestidor ?? 0); setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
+      setProjetos(saved.projetos ?? 0); setAdministracao(saved.administracao ?? 0); setHonorarios(saved.honorarios ?? 0);
+      setExpenseOverrides(Object.fromEntries((saved.despesas ?? []).map((x) => [x.id, x.valor])));
+      setLoadingEdit(false);
+    });
+    return () => { active = false; };
+  }, [editar]);
   useEffect(() => {
     let active = true;
     setCubLoading(true);
@@ -188,8 +223,8 @@ function Wizard() {
       setErro("Informe a renda e o valor financiado para continuar.");
       return;
     }
-    if (step === 2 && !cub) {
-      setErro("Ainda não há uma referência de CUB para esta seleção.");
+    if (step === 2 && custoReal <= 0) {
+      setErro("Informe mão de obra e materiais por m² para calcular a área.");
       return;
     }
     if (step === 3 && cronograma.reduce((s, x) => s + x.percentual, 0) !== 100) {
@@ -203,10 +238,8 @@ function Wizard() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios };
-    const { data, error } = await supabase
-      .from("simulacoes")
-      .insert({
-        user_id: u.user.id,
+    if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
+    const payload = {
         nome,
         terreno_valor: terreno,
         terreno_situacao: situacao,
@@ -223,10 +256,14 @@ function Wizard() {
         prazo_venda_meses: objetivo === "vender" ? prazo : null,
         taxa_juros_obra_mensal: juros,
         resultado: payloadResult,
-      })
+    };
+    const query = editar
+      ? supabase.from("simulacoes").update(payload).eq("id", editar).eq("user_id", u.user.id)
+      : supabase.from("simulacoes").insert({ ...payload, user_id: u.user.id });
+    const { data, error } = await query
       .select("id")
       .single();
-    if (error) {
+    if (error || !data) {
       setErro("Não foi possível salvar. Revise os dados e tente novamente.");
       return;
     }
@@ -245,10 +282,11 @@ function Wizard() {
       />
     </div>
   );
+  if (loadingEdit) return <AppShell><div className="mx-auto h-52 max-w-3xl animate-pulse rounded-lg bg-muted" /></AppShell>;
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold text-primary">NOVA SIMULAÇÃO</p>
+        <p className="text-sm font-semibold text-primary">{editar ? "EDITAR SIMULAÇÃO" : "NOVA SIMULAÇÃO"}</p>
         <div className="mt-3 flex items-end justify-between gap-4">
           <h1 className="text-3xl font-bold">
             {
@@ -324,7 +362,7 @@ function Wizard() {
                     </select>
                   </div>
                   <div>
-                    <Label>CUB por m²</Label>
+                    <Label>CUB publicado por m² · referência</Label>
                     <div className="mt-2 flex h-11 items-center rounded-md border bg-muted/40 px-3 text-sm font-semibold">
                       {cubLoading ? (
                         <>
@@ -353,13 +391,13 @@ function Wizard() {
                     )}
                   </div>
                   {field("Juros nominais (% - simulador Caixa)", juros, setJuros, false)}
+                  {field("Mão de obra por m²", maoDeObra, setMaoDeObra)}
+                  {field("Materiais por m²", materiais, setMateriais)}
                 </div>
+                <div className="border-y py-4 text-sm"><span className="text-muted-foreground">Custo real por m² (mão de obra + materiais)</span><strong className="ml-3">{BRL.format(custoReal)}</strong><p className="mt-1 text-xs text-muted-foreground">CUB: {BRL.format(cub)} · CUB + 10%: {BRL.format(cub * 1.1)}. Comparação indicativa, não garante aprovação do banco.</p></div>
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-5">
-                  <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
-                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                    <div><p className="text-xs text-muted-foreground">Mínima · BDI 18%</p><p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p></div>
-                    <div><p className="text-xs text-muted-foreground">Máxima · BDI 0%</p><p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p></div>
-                  </div>
+                  <p className="text-sm text-muted-foreground">Área construída viável estimada · custo real</p>
+                  <p className="mt-2 text-2xl font-bold text-primary">{result.areaViavel.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
                 </div>
                 <div className="border-t pt-6">
                   <div className="flex items-center justify-between">
@@ -484,11 +522,13 @@ function Wizard() {
                       <Label>Corretagem (%)</Label>
                       <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
                     </div>
-                    {field("Prazo até a venda (meses)", prazo, setPrazo, false)}
+                    {field("Meses após conclusão até a venda (0 = venda na planta)", prazo, setPrazo, false)}
+                    {field("Capital investido pelo investidor", capitalInvestidor, setCapitalInvestidor)}
+                    <div><Label>Participação do investidor no resultado (%)</Label><NumericInput className="mt-2 h-11" value={participacaoInvestidor} decimals={2} onValueChange={setParticipacaoInvestidor} /></div>
                     <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">Inclui os custos calculados, o lucro desejado e {corretagem.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de corretagem. Honorários e administração já estão nas despesas adicionais.</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Construção, despesas (incluindo projetos, honorários e administração), reserva, juros de obra, lucro desejado e corretagem. Cada valor entra uma vez.</p>
                     </div>
                   </>
                 )}
@@ -511,7 +551,7 @@ function Wizard() {
                 </div>
                 <div className="md:col-span-2 rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
-                  <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a {result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavel.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
                 </div>
               </div>
             )}
@@ -531,7 +571,7 @@ function Wizard() {
                 {step === 4 ? (
                   <>
                     <Check />
-                    Calcular e salvar
+                     {editar ? "Salvar alterações" : "Calcular e salvar"}
                   </>
                 ) : (
                   <>
