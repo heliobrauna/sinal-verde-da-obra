@@ -184,7 +184,7 @@ function Wizard() {
     supabase.from("simulacoes").select("*").eq("id", editar).single().then(({ data, error }) => {
       if (!active) return;
       if (error || !data) { setErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
-      const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number> };
+       const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number>; cubReferencia?: CubReference };
       setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
       setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
