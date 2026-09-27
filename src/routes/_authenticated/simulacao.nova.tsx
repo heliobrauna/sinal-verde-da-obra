@@ -124,6 +124,7 @@ function Wizard() {
   const [estado, setEstado] = useState("CE");
   const [padrao, setPadrao] = useState<"baixo" | "normal" | "alto">("normal");
   const [cubRef, setCubRef] = useState<CubReference | null>(null);
+  const [savedCub, setSavedCub] = useState(0);
   const [cubLoading, setCubLoading] = useState(false);
   const [juros, setJuros] = useState(0.8);
   const [maoDeObra, setMaoDeObra] = useState(0);
@@ -143,7 +144,7 @@ function Wizard() {
   const [honorarios, setHonorarios] = useState(0);
   const [expenseOverrides, setExpenseOverrides] = useState<Record<string, number>>({});
   const [erro, setErro] = useState("");
-  const cub = cubRef?.valor ?? 0;
+  const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
     () => calculate({ credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, stages: cronograma, despesas: [], capitalInvestidor, participacaoInvestidor }),
@@ -187,6 +188,7 @@ function Wizard() {
       setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
       setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
+      setSavedCub(data.cub_valor_m2);
       setJuros(data.taxa_juros_obra_mensal); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
       setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
@@ -549,6 +551,7 @@ function Wizard() {
                     Valores municipais, cartorários e previdenciários são estimativas editáveis.
                   </p>
                 </div>
+                {objetivo === "vender" && <div className="md:col-span-2 border-y py-4"><p className="text-sm font-semibold">Cenários de venda</p><p className="mt-1 text-xs text-muted-foreground">Variação de 15% no valor de venda. Juros pós-obra estimados com taxa nominal constante sobre o financiamento, sem amortização; parcelas incluem amortização linear ilustrativa em 360 meses. Confirme condições contratuais.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">{result.cenarios.map(c => <div key={c.nome} className="border-l border-border pl-3"><p className="text-sm font-semibold">{c.nome}</p><p className="text-sm">Venda {BRL.format(c.venda)}</p><p className="text-sm">Resultado {BRL.format(c.saldo)}</p><p className="text-xs text-muted-foreground">Construtor {BRL.format(c.lucroConstrutor)} · Investidor {BRL.format(c.lucroInvestidor)}</p><p className="text-xs text-muted-foreground">Retorno do investidor: {c.rentabilidadeInvestidor === null ? "—" : `${c.rentabilidadeInvestidor.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</p></div>)}</div><p className="mt-3 text-xs text-muted-foreground">{prazo} meses após a obra · juros estimados {BRL.format(result.jurosPosObra)} · parcelas estimadas {BRL.format(result.parcelasEstimadas)} (incluem {BRL.format(result.amortizacaoEstimada)} de amortização, que não é despesa adicional).</p></div>}
                 <div className="md:col-span-2 rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
                   <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavel.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
