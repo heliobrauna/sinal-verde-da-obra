@@ -56,7 +56,7 @@ async function fetchOfficialCub(estado: string, padrao: keyof typeof patternInde
       desoneracao: "sem-desoneracao",
       variacao: "sem-variacao",
       cimento: "1",
-      projeto: "1",
+       projeto: String([1, 5, 9][patternIndex[padrao]]),
     });
     const response = await fetch(url, {
       method: "POST",
@@ -76,7 +76,7 @@ async function fetchOfficialCub(estado: string, padrao: keyof typeof patternInde
   const { extractText } = await import("unpdf");
   const result = await extractText(new Uint8Array(await pdf.arrayBuffer()), { mergePages: true });
   const text = String(result.text);
-  const values = text.match(/R-1\s+([\d.]+,\d{2})\s+R-1\s+([\d.]+,\d{2})\s+R-1\s+([\d.]+,\d{2})/);
+   const values = text.match(/R-1\s+([\d.]+,\d{2})\s+R-1\s+([\d.]+,\d{2})\s+R-1\s+([\d.]+,\d{2})/);
   const reference = text.match(/-\s+([A-Za-zÀ-ÿ]+\/\d{4})/)?.[1];
   if (!values) throw new Error("Tabela oficial em formato inesperado");
   return {
