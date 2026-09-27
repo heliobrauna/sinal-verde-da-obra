@@ -189,6 +189,7 @@ function Wizard() {
       setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
       setSavedCub(data.cub_valor_m2);
+      if (saved.cubReferencia) setCubRef(saved.cubReferencia as CubReference);
       setJuros(data.taxa_juros_obra_mensal); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
       setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
@@ -403,7 +404,7 @@ function Wizard() {
                 </div>
                 <div className="border-t pt-6">
                   <div className="flex items-center justify-between">
-                    <Label>Custos fora do CUB</Label>
+                    <Label>Custos fora do custo real por m²</Label>
                     <Button
                       type="button"
                       variant="outline"
@@ -452,7 +453,7 @@ function Wizard() {
                     ))}
                   </div>
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Total fora do CUB:{" "}
+                     Total fora da construção por m²:{" "}
                     <strong className="text-foreground">{BRL.format(result.extrasTotal)}</strong>
                   </p>
                 </div>
