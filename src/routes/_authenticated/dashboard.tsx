@@ -59,7 +59,7 @@ function Dashboard() {
           </p>
         </div>
         <Button asChild size="lg">
-          <Link to="/simulacao/nova">
+          <Link to="/simulacao/nova" search={{}}>
             <Calculator />
             Nova simulação
           </Link>
@@ -75,7 +75,7 @@ function Dashboard() {
             Comece pelo valor financiado e descubra uma área segura para construir.
           </p>
           <Button asChild className="mt-6">
-            <Link to="/simulacao/nova">Criar primeira simulação</Link>
+            <Link to="/simulacao/nova" search={{}}>Criar primeira simulação</Link>
           </Button>
         </div>
       ) : (

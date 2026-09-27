@@ -162,7 +162,7 @@ function Result() {
       {r.maoDeObra !== undefined && <section className="mt-5 grid gap-3 border-y py-5 text-sm sm:grid-cols-3"><p>Mão de obra: <strong>{BRL.format(r.maoDeObra)}</strong>/m²</p><p>Materiais: <strong>{BRL.format(r.materiais ?? 0)}</strong>/m²</p><p>CUB publicado: <strong>{BRL.format(r.cubReferenciaValor ?? item.cub_valor_m2)}</strong>/m² · +10%: {BRL.format(r.cubMaisDez ?? item.cub_valor_m2 * 1.1)}</p><p className="text-xs text-muted-foreground sm:col-span-3">O CUB é apenas referência comparativa; não garante aprovação do banco.</p></section>}
       {item.objetivo === "vender" && <section className="mt-8 grid gap-4 md:grid-cols-3">
         {[
-          [item.objetivo === "morar" ? 'Remuneração ou margem do responsável' : 'Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
+          ['Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
           ['Honorários desejados', r.despesas?.filter((x) => x.id === 'honorarios-entrada' || x.id === 'honorarios-saldo').reduce((sum, x) => sum + x.valor, 0) ?? r.honorarios ?? 0],
           ['Administração do processo', r.despesas?.find((x) => x.id === 'administracao')?.valor ?? r.administracao ?? 0],
         ].map(([label, value]) => (
