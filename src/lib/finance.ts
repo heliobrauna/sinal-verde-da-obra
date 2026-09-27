@@ -16,6 +16,8 @@ export type ClientExpense = {
 export type SimulationInput = {
   credito: number;
   cub: number;
+  maoDeObra: number;
+  materiais: number;
   extras: Extra[];
   objetivo: "morar" | "vender";
   lucro: number;
@@ -24,6 +26,8 @@ export type SimulationInput = {
   juros: number;
   stages: Stage[];
   despesas: ClientExpense[];
+  capitalInvestidor: number;
+  participacaoInvestidor: number;
 };
 
 export function estimatedExpenses(
@@ -228,50 +232,64 @@ export function calculate(input: SimulationInput) {
   const despesasTotal = input.despesas.reduce((sum, item) => sum + Number(item.valor || 0), 0);
   const contingencia = input.credito * 0.2;
   const jurosObra = input.credito * (input.juros / 100);
+  const custoM2 = input.maoDeObra + input.materiais;
   const disponivel = Math.max(
     0,
     input.credito - extrasTotal - despesasTotal - contingencia - jurosObra - input.lucro,
   );
-  const custoM2Minimo = input.cub;
-  const custoM2Maximo = input.cub * 1.18;
-  const areaViavelMaxima = custoM2Minimo > 0 ? disponivel / custoM2Minimo : 0;
-  const areaViavelMinima = custoM2Maximo > 0 ? disponivel / custoM2Maximo : 0;
-  const areaViavel = areaViavelMinima;
-  const custoM2 = custoM2Maximo;
-  const custoObra = areaViavel * custoM2 + extrasTotal + despesasTotal;
-  const custoTotal = custoObra + jurosObra;
+  const areaViavel = custoM2 > 0 ? disponivel / custoM2 : 0;
+  const areaViavelMinima = areaViavel;
+  const areaViavelMaxima = areaViavel;
+  const custoConstrucao = areaViavel * custoM2;
+  const custoObra = custoConstrucao + extrasTotal + despesasTotal;
+  const custoTotal = custoObra + jurosObra + contingencia;
   const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
   const valorVenda = input.objetivo === "vender"
     ? (custoTotal + input.lucro) / (1 - taxaCorretagem)
     : input.credito;
-  const cenarios = [-0.15, 0, 0.15].map((ajuste, i) => ({
-    nome: ["Pessimista", "Realista", "Otimista"][i],
-    ajuste,
-    venda: valorVenda * (1 + ajuste),
-    corretagem: valorVenda * (1 + ajuste) * taxaCorretagem,
-    saldo:
-      valorVenda * (1 + ajuste) -
-      valorVenda * (1 + ajuste) * taxaCorretagem -
-      custoObra -
-      jurosObra,
-  }));
+  const mesesAposObra = Math.max(0, Math.floor(input.prazo));
+  const jurosPosObra = input.credito * (input.juros / 100) * mesesAposObra;
+  const amortizacaoEstimada = Math.min(input.credito, input.credito / 360 * mesesAposObra);
+  const participacaoInvestidor = Math.min(100, Math.max(0, input.participacaoInvestidor));
+  const cenarios = [-0.15, 0, 0.15].map((ajuste, i) => {
+    const venda = valorVenda * (1 + ajuste);
+    const corretagem = venda * taxaCorretagem;
+    const saldo = venda - corretagem - custoTotal - jurosPosObra;
+    const lucroInvestidor = saldo * participacaoInvestidor / 100;
+    return {
+      nome: ["Pessimista", "Realista", "Otimista"][i], ajuste, venda, corretagem,
+      saldo, lucroInvestidor, lucroConstrutor: saldo - lucroInvestidor,
+      rentabilidadeInvestidor: input.capitalInvestidor > 0 ? lucroInvestidor / input.capitalInvestidor * 100 : null,
+    };
+  });
   return {
     areaViavel,
     areaViavelMinima,
     areaViavelMaxima,
     custoM2,
+    maoDeObra: input.maoDeObra,
+    materiais: input.materiais,
+    cubReferenciaValor: input.cub,
+    cubMaisDez: input.cub * 1.1,
     extrasTotal,
     despesasTotal,
     despesas: input.despesas,
     contingencia,
     disponivel,
     custoObra,
+    custoConstrucao,
     custoTotal,
     jurosObra,
     valorVenda,
     corretagemPercentual: input.corretagem,
     corretagemValor: valorVenda * taxaCorretagem,
     lucroDesejado: input.lucro,
+    mesesAposObra,
+    jurosPosObra,
+    amortizacaoEstimada,
+    parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
+    capitalInvestidor: input.capitalInvestidor,
+    participacaoInvestidor,
     cenarios,
     cronograma: input.stages.map((s) => ({ ...s, valor: (input.credito * s.percentual) / 100 })),
   };
