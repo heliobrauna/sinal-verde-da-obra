@@ -20,9 +20,14 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   calculate,
   BRL,
+  annualToMonthlyRate,
   estimatedExpenses,
+  monthlyToAnnualRate,
+  pciReleases,
+  suggestedExecutionMonths,
   type ClientExpense,
   type Extra,
+  type MonthlyRelease,
   type Stage,
 } from "@/lib/finance";
 import { getResidentialCub } from "@/lib/cub.functions";
@@ -126,18 +131,23 @@ function Wizard() {
   const [cubRef, setCubRef] = useState<CubReference | null>(null);
   const [savedCub, setSavedCub] = useState(0);
   const [cubLoading, setCubLoading] = useState(false);
-  const [juros, setJuros] = useState(0.8);
+  const [entradaDinheiro, setEntradaDinheiro] = useState(0);
+  const [fgtsUtilizado, setFgtsUtilizado] = useState(0);
+  const [percentualFinanciavelLote, setPercentualFinanciavelLote] = useState(80);
+  const [jurosAnuais, setJurosAnuais] = useState(10);
   const [maoDeObra, setMaoDeObra] = useState(0);
   const [materiais, setMateriais] = useState(0);
   const [extras, setExtras] = useState<Extra[]>(
     suggestions.map((descricao) => ({ descricao, valor: 0 })),
   );
   const [cronograma, setCronograma] = useState(stages);
+  const [prazoExecucao, setPrazoExecucao] = useState(6);
+  const [liberacoes, setLiberacoes] = useState<MonthlyRelease[]>(pciReleases(6));
+  const [prazoEditado, setPrazoEditado] = useState(false);
   const [objetivo, setObjetivo] = useState<"morar" | "vender">("morar");
   const [lucro, setLucro] = useState(0);
   const [corretagem, setCorretagem] = useState(5);
   const [prazo, setPrazo] = useState(0);
-  const [capitalInvestidor, setCapitalInvestidor] = useState(0);
   const [participacaoInvestidor, setParticipacaoInvestidor] = useState(0);
   const [projetos, setProjetos] = useState(0);
   const [administracao, setAdministracao] = useState(0);
@@ -147,8 +157,8 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, stages: cronograma, despesas: [], capitalInvestidor, participacaoInvestidor }),
-    [credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, cronograma, capitalInvestidor, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
   const estimates = useMemo(
     () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima),
@@ -162,6 +172,11 @@ function Wizard() {
     () =>
       calculate({
         credito,
+        terreno,
+        saldoDevedor: situacao === "financiado" ? saldo : 0,
+        entradaDinheiro,
+        fgtsUtilizado,
+        percentualFinanciavelLote,
         cub,
         maoDeObra,
         materiais,
@@ -170,13 +185,13 @@ function Wizard() {
         lucro,
         corretagem,
         prazo,
-        juros,
+        jurosAnuais,
         stages: cronograma,
+        liberacoes,
         despesas,
-        capitalInvestidor,
         participacaoInvestidor,
       }),
-    [credito, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, juros, cronograma, despesas, capitalInvestidor, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -190,13 +205,20 @@ function Wizard() {
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
       setSavedCub(data.cub_valor_m2);
       if (saved.cubReferencia) setCubRef(saved.cubReferencia as CubReference);
-      setJuros(data.taxa_juros_obra_mensal); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
+       setEntradaDinheiro(saved.entradaDinheiro ?? 0); setFgtsUtilizado(saved.fgtsUtilizado ?? 0);
+       setPercentualFinanciavelLote(saved.percentualFinanciavelLote ?? 80);
+       setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
       setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
       setCronograma(saved.cronograma?.map(({ nome, percentual }) => ({ nome, percentual })) ?? stages);
+       if (saved.liberacoesMensais?.length) {
+         setPrazoExecucao(saved.prazoExecucaoMeses ?? saved.liberacoesMensais.length);
+         setLiberacoes(saved.liberacoesMensais.map(({ mes, percentual }) => ({ mes, percentual })));
+         setPrazoEditado(true);
+       }
       setObjetivo(data.objetivo as "morar" | "vender"); setLucro(data.lucro_desejado ?? 0);
       setCorretagem(saved.corretagemPercentual ?? 5); setPrazo(saved.mesesAposObra ?? data.prazo_venda_meses ?? 0);
-      setCapitalInvestidor(saved.capitalInvestidor ?? 0); setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
+       setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
       setProjetos(saved.projetos ?? 0); setAdministracao(saved.administracao ?? 0); setHonorarios(saved.honorarios ?? 0);
       setExpenseOverrides(saved.expenseOverrides ?? Object.fromEntries((saved.despesas ?? []).map((x) => [x.id, x.valor])));
       setLoadingEdit(false);
@@ -221,6 +243,14 @@ function Wizard() {
       active = false;
     };
   }, [estado, padrao, fetchCub]);
+  useEffect(() => {
+    if (loadingEdit || prazoEditado || baseResult.areaViavelMinima <= 0) return;
+    const suggested = suggestedExecutionMonths(baseResult.areaViavelMinima);
+    if (suggested !== prazoExecucao) {
+      setPrazoExecucao(suggested);
+      setLiberacoes(pciReleases(suggested));
+    }
+  }, [baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   function next() {
     if (step === 1 && (!credito || !renda)) {
       setErro("Informe a renda e o valor financiado para continuar.");
@@ -230,8 +260,10 @@ function Wizard() {
       setErro("Informe mão de obra e materiais por m² para calcular a área.");
       return;
     }
-    if (step === 3 && cronograma.reduce((s, x) => s + x.percentual, 0) !== 100) {
-      setErro("A soma das etapas precisa ser exatamente 100%.");
+    const totalEtapas = cronograma.reduce((sum, item) => sum + item.percentual, 0);
+    const totalLiberacoes = liberacoes.reduce((sum, item) => sum + item.percentual, 0);
+    if (step === 3 && (Math.abs(totalEtapas - 100) > 0.01 || Math.abs(totalLiberacoes - 100) > 0.01)) {
+      setErro("Os percentuais das etapas e das liberações mensais precisam somar 100%.");
       return;
     }
     setErro("");
@@ -260,7 +292,7 @@ function Wizard() {
         objetivo,
         lucro_desejado: lucro,
         prazo_venda_meses: objetivo === "vender" ? prazo : null,
-        taxa_juros_obra_mensal: juros,
+         taxa_juros_obra_mensal: annualToMonthlyRate(jurosAnuais),
         resultado: payloadResult,
     };
     const query = editar
@@ -336,8 +368,17 @@ function Wizard() {
                   </select>
                 </div>
                 {situacao === "financiado" && field("Saldo devedor", saldo, setSaldo)}
+                 {field("Entrada em dinheiro", entradaDinheiro, setEntradaDinheiro)}
+                 {field("FGTS que pretende usar", fgtsUtilizado, setFgtsUtilizado)}
+                 {situacao === "financiado" && field("Percentual máximo financiável do lote (%)", percentualFinanciavelLote, setPercentualFinanciavelLote, false)}
                 {field("Renda declarada", renda, setRenda)}
                 {field("Valor financiado (simulador Caixa)", credito, setCredito)}
+                 <div className="md:col-span-2 grid gap-3 border-y py-4 text-sm sm:grid-cols-3">
+                   <p><span className="text-muted-foreground">Ágio reconhecido</span><strong className="mt-1 block">{BRL.format(baseResult.agioLote)}</strong></p>
+                   <p><span className="text-muted-foreground">Entrada total reconhecida</span><strong className="mt-1 block">{BRL.format(baseResult.entradaTotalReconhecida)}</strong></p>
+                   <p><span className="text-muted-foreground">Financiamento para construção</span><strong className="mt-1 block">{BRL.format(baseResult.financiamentoConstrucao)}</strong></p>
+                   {situacao === "financiado" && <p className="text-xs text-muted-foreground sm:col-span-3">Quitação estimada do lote: {BRL.format(baseResult.quitacaoLote)}. Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}. O percentual definitivo depende da avaliação e das regras do banco.</p>}
+                 </div>
               </div>
             )}
             {step === 2 && (
@@ -396,14 +437,16 @@ function Wizard() {
                       </p>
                     )}
                   </div>
-                  {field("Juros nominais (% - simulador Caixa)", juros, setJuros, false)}
+                   {field("Taxa de juros anual (% a.a. — simulador Caixa)", jurosAnuais, setJurosAnuais, false)}
                   {field("Mão de obra por m²", maoDeObra, setMaoDeObra)}
                   {field("Materiais por m²", materiais, setMateriais)}
                 </div>
                 <div className="border-y py-4 text-sm"><span className="text-muted-foreground">Custo real por m² (mão de obra + materiais)</span><strong className="ml-3">{BRL.format(custoReal)}</strong><p className="mt-1 text-xs text-muted-foreground">{cub > 0 ? `CUB: ${BRL.format(cub)} · CUB + 10%: ${BRL.format(cub * 1.1)}.` : "CUB publicado indisponível para esta seleção."} Comparação indicativa, não garante aprovação do banco.</p></div>
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-5">
+                 <p className="text-xs text-muted-foreground">Taxa mensal equivalente por juros compostos: {annualToMonthlyRate(jurosAnuais).toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}% a.m.</p>
+                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Área construída viável estimada · custo real</p>
-                  <p className="mt-2 text-2xl font-bold text-primary">{result.areaViavel.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
+                   <p className="mt-2 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a {result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
+                   <p className="mt-1 text-xs text-muted-foreground">Mínima com BDI de 18%; máxima sem BDI.</p>
                 </div>
                 <div className="border-t pt-6">
                   <div className="flex items-center justify-between">
@@ -463,7 +506,8 @@ function Wizard() {
               </div>
             )}
             {step === 3 && (
-              <div>
+              <div className="space-y-8">
+                <div>
                 <p className="mb-6 text-sm text-muted-foreground">
                   Percentuais sugeridos pelo método Sinal Verde. A soma deve fechar em 100%.
                 </p>
@@ -495,6 +539,17 @@ function Wizard() {
                     {cronograma.reduce((a, b) => a + b.percentual, 0).toLocaleString("pt-BR")}%
                   </strong>
                 </p>
+                </div>
+                <div className="border-t pt-7">
+                  <div className="grid items-end gap-4 sm:grid-cols-[1fr_180px]">
+                    <div><h2 className="font-semibold">Liberações mensais da PCI</h2><p className="mt-1 text-xs text-muted-foreground">Incidem somente sobre {BRL.format(result.financiamentoConstrucao)} destinados à construção. A quitação do lote fica separada.</p></div>
+                    <div><Label>Prazo estimado da obra</Label><select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={prazoExecucao} onChange={(event) => { const months = Number(event.target.value); setPrazoEditado(true); setPrazoExecucao(months); setLiberacoes(pciReleases(months)); }}>{Array.from({ length: 19 }, (_, index) => index + 6).map((months) => <option key={months} value={months}>{months} meses</option>)}</select></div>
+                  </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    {liberacoes.map((release, index) => <div className="grid grid-cols-[1fr_110px] items-center gap-3" key={release.mes}><Label>Mês {release.mes}</Label><NumericInput value={release.percentual} decimals={2} onValueChange={(value) => setLiberacoes(liberacoes.map((item, itemIndex) => itemIndex === index ? { ...item, percentual: value } : item))} /></div>)}
+                  </div>
+                  <p className="mt-4 text-right text-sm">Total das liberações: <strong className={Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) <= 0.01 ? "text-primary" : "text-destructive"}>{liberacoes.reduce((sum, item) => sum + item.percentual, 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></p>
+                </div>
               </div>
             )}
             {step === 4 && (
@@ -529,8 +584,8 @@ function Wizard() {
                       <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
                     </div>
                     {field("Meses após conclusão até a venda (0 = venda na planta)", prazo, setPrazo, false)}
-                    {field("Capital investido pelo investidor", capitalInvestidor, setCapitalInvestidor)}
                     <div><Label>Participação do investidor no resultado (%)</Label><NumericInput className="mt-2 h-11" value={participacaoInvestidor} decimals={2} onValueChange={setParticipacaoInvestidor} /></div>
+                     <div className="flex items-center rounded-md border px-4 py-3"><div><p className="text-sm text-muted-foreground">Capital aportado pelo investidor</p><p className="font-semibold">{BRL.format(result.capitalAportadoInvestidor)}</p><p className="text-xs text-muted-foreground">Despesas pré-contrato + juros estimados da obra.</p></div></div>
                     <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
@@ -555,10 +610,11 @@ function Wizard() {
                     Valores municipais, cartorários e previdenciários são estimativas editáveis.
                   </p>
                 </div>
-                {objetivo === "vender" && <div className="md:col-span-2 border-y py-4"><p className="text-sm font-semibold">Cenários de venda</p><p className="mt-1 text-xs text-muted-foreground">Variação de 15% no valor de venda. Juros pós-obra estimados com taxa nominal constante sobre o financiamento, sem amortização; parcelas incluem amortização linear ilustrativa em 360 meses. Confirme condições contratuais.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">{result.cenarios.map(c => <div key={c.nome} className="border-l border-border pl-3"><p className="text-sm font-semibold">{c.nome}</p><p className="text-sm">Venda {BRL.format(c.venda)}</p><p className="text-sm">Resultado {BRL.format(c.saldo)}</p><p className="text-xs text-muted-foreground">Construtor {BRL.format(c.lucroConstrutor)} · Investidor {BRL.format(c.lucroInvestidor)}</p><p className="text-xs text-muted-foreground">Retorno do investidor: {c.rentabilidadeInvestidor === null ? "—" : `${c.rentabilidadeInvestidor.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</p></div>)}</div><p className="mt-3 text-xs text-muted-foreground">{prazo} meses após a obra · juros estimados {BRL.format(result.jurosPosObra)} · parcelas estimadas {BRL.format(result.parcelasEstimadas)} (incluem {BRL.format(result.amortizacaoEstimada)} de amortização, que não é despesa adicional).</p></div>}
+                 {objetivo === "vender" && <div className="md:col-span-2 border-y py-4"><p className="text-sm font-semibold">Cenários de venda</p><p className="mt-1 text-xs text-muted-foreground">Variação de 15% no valor de venda. Encargos pós-obra são estimativas; parcelas incluem amortização linear ilustrativa em 360 meses. Confirme as condições contratuais.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">{result.cenarios.map(c => <div key={c.nome} className="border-l border-border pl-3"><p className="text-sm font-semibold">{c.nome}</p><p className="text-sm">Venda {BRL.format(c.venda)}</p><p className="text-sm">Resultado {BRL.format(c.saldo)}</p><p className="text-xs text-muted-foreground">Construtor {BRL.format(c.lucroConstrutor)} · Investidor {BRL.format(c.lucroInvestidor)}</p><p className="text-xs text-muted-foreground">Retorno do investidor: {c.rentabilidadeInvestidor === null ? "—" : `${c.rentabilidadeInvestidor.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</p></div>)}</div><p className="mt-3 text-xs text-muted-foreground">Capital aportado: {BRL.format(result.capitalAportadoInvestidor)} · {prazo} meses após a obra · encargos estimados {BRL.format(result.jurosPosObra)} · parcelas estimadas {BRL.format(result.parcelasEstimadas)}.</p></div>}
                 <div className="md:col-span-2 rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
-                  <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavel.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
+                   <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a {result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
+                   <p className="mt-1 text-xs text-muted-foreground">BDI de 18% a 0%.</p>
                 </div>
               </div>
             )}
