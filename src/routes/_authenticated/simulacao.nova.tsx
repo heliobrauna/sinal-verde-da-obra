@@ -184,7 +184,7 @@ function Wizard() {
     supabase.from("simulacoes").select("*").eq("id", editar).single().then(({ data, error }) => {
       if (!active) return;
       if (error || !data) { setErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
-      const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number };
+      const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number> };
       setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
       setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
@@ -198,7 +198,7 @@ function Wizard() {
       setCorretagem(saved.corretagemPercentual ?? 5); setPrazo(saved.mesesAposObra ?? data.prazo_venda_meses ?? 0);
       setCapitalInvestidor(saved.capitalInvestidor ?? 0); setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
       setProjetos(saved.projetos ?? 0); setAdministracao(saved.administracao ?? 0); setHonorarios(saved.honorarios ?? 0);
-      setExpenseOverrides(Object.fromEntries((saved.despesas ?? []).map((x) => [x.id, x.valor])));
+      setExpenseOverrides(saved.expenseOverrides ?? Object.fromEntries((saved.despesas ?? []).map((x) => [x.id, x.valor])));
       setLoadingEdit(false);
     });
     return () => { active = false; };
@@ -240,7 +240,10 @@ function Wizard() {
   async function save() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios };
+    if (corretagem < 0 || corretagem >= 100 || participacaoInvestidor < 0 || participacaoInvestidor > 100 || prazo < 0) {
+      setErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
+    }
+    const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides };
     if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
@@ -397,7 +400,7 @@ function Wizard() {
                   {field("Mão de obra por m²", maoDeObra, setMaoDeObra)}
                   {field("Materiais por m²", materiais, setMateriais)}
                 </div>
-                <div className="border-y py-4 text-sm"><span className="text-muted-foreground">Custo real por m² (mão de obra + materiais)</span><strong className="ml-3">{BRL.format(custoReal)}</strong><p className="mt-1 text-xs text-muted-foreground">CUB: {BRL.format(cub)} · CUB + 10%: {BRL.format(cub * 1.1)}. Comparação indicativa, não garante aprovação do banco.</p></div>
+                <div className="border-y py-4 text-sm"><span className="text-muted-foreground">Custo real por m² (mão de obra + materiais)</span><strong className="ml-3">{BRL.format(custoReal)}</strong><p className="mt-1 text-xs text-muted-foreground">{cub > 0 ? `CUB: ${BRL.format(cub)} · CUB + 10%: ${BRL.format(cub * 1.1)}.` : "CUB publicado indisponível para esta seleção."} Comparação indicativa, não garante aprovação do banco.</p></div>
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Área construída viável estimada · custo real</p>
                   <p className="mt-2 text-2xl font-bold text-primary">{result.areaViavel.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>

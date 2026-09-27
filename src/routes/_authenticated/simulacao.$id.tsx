@@ -159,7 +159,7 @@ function Result() {
           </Card>
         ))}
       </section>
-      {r.maoDeObra !== undefined && <section className="mt-5 grid gap-3 border-y py-5 text-sm sm:grid-cols-3"><p>Mão de obra: <strong>{BRL.format(r.maoDeObra)}</strong>/m²</p><p>Materiais: <strong>{BRL.format(r.materiais ?? 0)}</strong>/m²</p><p>CUB publicado: <strong>{BRL.format(r.cubReferenciaValor ?? item.cub_valor_m2)}</strong>/m² · +10%: {BRL.format(r.cubMaisDez ?? item.cub_valor_m2 * 1.1)}</p><p className="text-xs text-muted-foreground sm:col-span-3">O CUB é apenas referência comparativa; não garante aprovação do banco.</p></section>}
+      {r.maoDeObra !== undefined && <section className="mt-5 grid gap-3 border-y py-5 text-sm sm:grid-cols-3"><p>Mão de obra: <strong>{BRL.format(r.maoDeObra)}</strong>/m²</p><p>Materiais: <strong>{BRL.format(r.materiais ?? 0)}</strong>/m²</p><p>{(r.cubReferenciaValor ?? item.cub_valor_m2) > 0 ? <>CUB publicado: <strong>{BRL.format(r.cubReferenciaValor ?? item.cub_valor_m2)}</strong>/m² · +10%: {BRL.format(r.cubMaisDez ?? item.cub_valor_m2 * 1.1)}</> : "CUB publicado indisponível"}</p><p className="text-xs text-muted-foreground sm:col-span-3">O CUB é apenas referência comparativa; não garante aprovação do banco.</p></section>}
       {item.objetivo === "vender" && <section className="mt-8 grid gap-4 md:grid-cols-3">
         {[
           ['Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
