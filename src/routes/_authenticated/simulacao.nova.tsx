@@ -95,7 +95,7 @@ type CubReference = {
 };
 
 export const Route = createFileRoute("/_authenticated/simulacao/nova")({
-  validateSearch: (search: Record<string, unknown>): { editar?: string } => ({ editar: typeof search['editar'] === "string" ? search['editar'] : undefined }),
+  validateSearch: (search: Record<string, unknown>): { editar?: string } => typeof search['editar'] === "string" ? { editar: search['editar'] } : {},
   head: () => ({
     meta: [
       { title: "Nova simulação | Sinal Verde da Obra" },
