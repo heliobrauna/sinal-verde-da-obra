@@ -24,6 +24,7 @@ export type SimulationInput = {
   cub: number;
   maoDeObra: number;
   materiais: number;
+  areaPlanejada: number;
   extras: Extra[];
   objetivo: "morar" | "vender";
   lucro: number;
@@ -60,22 +61,24 @@ export function suggestedExecutionMonths(area: number) {
 }
 
 function resample(values: number[], count: number) {
+  if (values.length === 0) return Array.from({ length: count }, () => 100 / count);
   const sampled = Array.from({ length: count }, (_, index) => {
     const position = count === 1 ? 0 : index * (values.length - 1) / (count - 1);
     const low = Math.floor(position);
     const high = Math.min(values.length - 1, Math.ceil(position));
     const fraction = position - low;
-    return values[low] * (1 - fraction) + values[high] * fraction;
+    return (values[low] ?? 0) * (1 - fraction) + (values[high] ?? 0) * fraction;
   });
   const total = sampled.reduce((sum, value) => sum + value, 0);
   const rounded = sampled.map((value) => Math.round(value / total * 10000) / 100);
-  rounded[rounded.length - 1] += Math.round((100 - rounded.reduce((sum, value) => sum + value, 0)) * 100) / 100;
+  const last = rounded.length - 1;
+  rounded[last] = (rounded[last] ?? 0) + Math.round((100 - rounded.reduce((sum, value) => sum + value, 0)) * 100) / 100;
   return rounded;
 }
 
 export function pciReleases(months: number): MonthlyRelease[] {
   const safeMonths = Math.min(24, Math.max(1, Math.round(months)));
-  const percentages = PCI_PRESETS[safeMonths] ?? resample(PCI_PRESETS[13], safeMonths);
+  const percentages = PCI_PRESETS[safeMonths] ?? resample(PCI_PRESETS[13] ?? [100], safeMonths);
   return percentages.map((percentual, index) => ({ mes: index + 1, percentual }));
 }
 
@@ -137,19 +140,21 @@ export function calculate(input: SimulationInput) {
   const percentualFinanciavelLote = Math.min(100, Math.max(0, input.percentualFinanciavelLote));
   const limiteFinanciavelLote = input.terreno * percentualFinanciavelLote / 100;
   const quitacaoLote = Math.min(input.credito, saldoDevedor, limiteFinanciavelLote);
+  const saldoLoteNaoCoberto = Math.max(saldoDevedor - quitacaoLote, 0);
   const avaliacaoMinimaLote = percentualFinanciavelLote > 0 ? saldoDevedor / (percentualFinanciavelLote / 100) : 0;
   const financiamentoConstrucao = Math.max(input.credito - quitacaoLote, 0);
   const entradaTotalReconhecida = input.entradaDinheiro + input.fgtsUtilizado + agioLote;
-  const recursosUtilizaveis = financiamentoConstrucao + input.entradaDinheiro + input.fgtsUtilizado;
+  const recursosUtilizaveis = Math.max(financiamentoConstrucao + input.entradaDinheiro + input.fgtsUtilizado - saldoLoteNaoCoberto, 0);
   const taxaMensalPercentual = annualToMonthlyRate(input.jurosAnuais);
   const taxaMensal = taxaMensalPercentual / 100;
   let saldoLiberado = 0;
   let jurosObra = 0;
   const liberacoesMensais = input.liberacoes.map((item) => {
-    const liberacao = financiamentoConstrucao * item.percentual / 100;
-    saldoLiberado += liberacao;
+    // A medição libera recursos ao fim do mês; os encargos incidem sobre o saldo já liberado.
     const encargo = saldoLiberado * taxaMensal;
     jurosObra += encargo;
+    const liberacao = financiamentoConstrucao * item.percentual / 100;
+    saldoLiberado += liberacao;
     return { ...item, liberacao, saldoLiberado, encargo };
   });
   const contingencia = recursosUtilizaveis * 0.2;
@@ -158,9 +163,11 @@ export function calculate(input: SimulationInput) {
   const areaViavelMaxima = custoM2 > 0 ? disponivel / custoM2 : 0;
   const areaViavelMinima = custoM2 > 0 ? disponivel / (custoM2 * 1.18) : 0;
   const areaViavel = areaViavelMinima;
-  const custoConstrucao = areaViavel * custoM2;
+  const areaPlanejada = input.areaPlanejada > 0 ? input.areaPlanejada : areaViavelMinima;
+  const custoConstrucao = areaPlanejada * custoM2;
   const custoObra = custoConstrucao + extrasTotal + despesasTotal;
   const custoTotal = custoObra + jurosObra + contingencia;
+  const aporteParaAreaPlanejada = Math.max(custoTotal + input.lucro - recursosUtilizaveis, 0);
   const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
   const valorVenda = input.objetivo === "vender" ? (custoTotal + input.lucro) / (1 - taxaCorretagem) : recursosUtilizaveis;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
@@ -168,8 +175,8 @@ export function calculate(input: SimulationInput) {
   const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / 360 * mesesAposObra);
   const capitalAportadoInvestidor = despesasPreContrato + jurosObra;
   const participacaoInvestidor = Math.min(100, Math.max(0, input.participacaoInvestidor));
-  const entradaLivreInicioObra = Math.max(input.entradaDinheiro - despesasPreContrato, 0);
-  const aporteAdicional = Math.max(despesasPreContrato + jurosObra - input.entradaDinheiro - input.fgtsUtilizado, 0);
+  const entradaLivreInicioObra = Math.max(input.entradaDinheiro - despesasPreContrato - saldoLoteNaoCoberto, 0);
+  const aporteAdicional = Math.max(despesasPreContrato + saldoLoteNaoCoberto + jurosObra - input.entradaDinheiro - input.fgtsUtilizado, 0);
   const cenarios = [-0.15, 0, 0.15].map((ajuste, index) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
@@ -182,7 +189,7 @@ export function calculate(input: SimulationInput) {
     };
   });
   return {
-    areaViavel, areaViavelMinima, areaViavelMaxima, custoM2,
+    areaViavel, areaViavelMinima, areaViavelMaxima, areaPlanejada, aporteParaAreaPlanejada, custoM2,
     maoDeObra: input.maoDeObra, materiais: input.materiais,
     cubReferenciaValor: input.cub, cubMaisDez: input.cub * 1.1,
     extrasTotal, despesasTotal, despesasPreContrato, despesas: input.despesas,
@@ -194,7 +201,7 @@ export function calculate(input: SimulationInput) {
     terreno: input.terreno, saldoDevedor, entradaDinheiro: input.entradaDinheiro,
     fgtsUtilizado: input.fgtsUtilizado, agioLote, entradaTotalReconhecida,
     percentualFinanciavelLote, limiteFinanciavelLote, avaliacaoMinimaLote,
-    quitacaoLote, financiamentoConstrucao, recursosUtilizaveis,
+    quitacaoLote, saldoLoteNaoCoberto, financiamentoConstrucao, recursosUtilizaveis,
     entradaLivreInicioObra, aporteAdicional,
     taxaJurosAnual: input.jurosAnuais, taxaJurosMensalEquivalente: taxaMensalPercentual,
     prazoExecucaoMeses: input.liberacoes.length, liberacoesMensais,

@@ -137,6 +137,7 @@ function Wizard() {
   const [jurosAnuais, setJurosAnuais] = useState(10);
   const [maoDeObra, setMaoDeObra] = useState(0);
   const [materiais, setMateriais] = useState(0);
+  const [areaPlanejada, setAreaPlanejada] = useState(0);
   const [extras, setExtras] = useState<Extra[]>(
     suggestions.map((descricao) => ({ descricao, valor: 0 })),
   );
@@ -157,7 +158,7 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
     [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
   const estimates = useMemo(
@@ -180,6 +181,7 @@ function Wizard() {
         cub,
         maoDeObra,
         materiais,
+        areaPlanejada,
         extras,
         objetivo,
         lucro,
@@ -191,7 +193,7 @@ function Wizard() {
         despesas,
         participacaoInvestidor,
       }),
-    [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -209,6 +211,7 @@ function Wizard() {
        setPercentualFinanciavelLote(saved.percentualFinanciavelLote ?? 80);
        setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
+       setAreaPlanejada(saved.areaPlanejada ?? saved.areaViavelMinima ?? saved.areaViavel ?? 0);
       setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
       setCronograma(saved.cronograma?.map(({ nome, percentual }) => ({ nome, percentual })) ?? stages);
        if (saved.liberacoesMensais?.length) {
@@ -267,6 +270,7 @@ function Wizard() {
       return;
     }
     setErro("");
+    if (step === 3 && areaPlanejada <= 0) setAreaPlanejada(result.areaViavelMinima);
     setStep(Math.min(4, step + 1));
   }
   async function save() {
@@ -274,6 +278,9 @@ function Wizard() {
     if (!u.user) return;
     if (corretagem < 0 || corretagem >= 100 || participacaoInvestidor < 0 || participacaoInvestidor > 100 || prazo < 0) {
       setErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
+    }
+    if (percentualFinanciavelLote <= 0 || percentualFinanciavelLote > 100 || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
+      setErro("Revise o percentual financiável do lote e os dois cronogramas: cada um deve somar 100%."); return;
     }
     const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides };
     if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
@@ -377,7 +384,7 @@ function Wizard() {
                    <p><span className="text-muted-foreground">Ágio reconhecido</span><strong className="mt-1 block">{BRL.format(baseResult.agioLote)}</strong></p>
                    <p><span className="text-muted-foreground">Entrada total reconhecida</span><strong className="mt-1 block">{BRL.format(baseResult.entradaTotalReconhecida)}</strong></p>
                    <p><span className="text-muted-foreground">Financiamento para construção</span><strong className="mt-1 block">{BRL.format(baseResult.financiamentoConstrucao)}</strong></p>
-                   {situacao === "financiado" && <p className="text-xs text-muted-foreground sm:col-span-3">Quitação estimada do lote: {BRL.format(baseResult.quitacaoLote)}. Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}. O percentual definitivo depende da avaliação e das regras do banco.</p>}
+                 {situacao === "financiado" && <p className="text-xs text-muted-foreground sm:col-span-3">Quitação estimada do lote: {BRL.format(baseResult.quitacaoLote)}. Saldo não coberto: {BRL.format(baseResult.saldoLoteNaoCoberto)}. Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}. O percentual definitivo depende da avaliação e das regras do banco.</p>}
                  </div>
               </div>
             )}
@@ -542,7 +549,7 @@ function Wizard() {
                 </div>
                 <div className="border-t pt-7">
                   <div className="grid items-end gap-4 sm:grid-cols-[1fr_180px]">
-                    <div><h2 className="font-semibold">Liberações mensais da PCI</h2><p className="mt-1 text-xs text-muted-foreground">Incidem somente sobre {BRL.format(result.financiamentoConstrucao)} destinados à construção. A quitação do lote fica separada.</p></div>
+                    <div><h2 className="font-semibold">Liberações mensais da PCI</h2><p className="mt-1 text-xs text-muted-foreground">Incidem somente sobre {BRL.format(result.financiamentoConstrucao)} destinados à construção. A quitação do lote fica separada. Cada liberação é prevista ao fim do mês, após a medição.</p></div>
                     <div><Label>Prazo estimado da obra</Label><select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={prazoExecucao} onChange={(event) => { const months = Number(event.target.value); setPrazoEditado(true); setPrazoExecucao(months); setLiberacoes(pciReleases(months)); }}>{Array.from({ length: 19 }, (_, index) => index + 6).map((months) => <option key={months} value={months}>{months} meses</option>)}</select></div>
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -570,6 +577,7 @@ function Wizard() {
                   </div>
                 </div>
                 {field(objetivo === "morar" ? "Remuneração ou margem do responsável" : "Lucro desejado", lucro, setLucro)}
+                 <div>{field("Área planejada para orçamento (m²)", areaPlanejada, setAreaPlanejada, false)}<p className="mt-1 text-xs text-muted-foreground">O preço acompanha os custos desta área; compare com a faixa viável abaixo.</p></div>
                 {field("Honorários desejados", honorarios, setHonorarios)}
                 {field("Projetos", projetos, setProjetos)}
                 {field(
@@ -590,6 +598,7 @@ function Wizard() {
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
                       <p className="mt-2 text-xs text-muted-foreground">Construção, despesas (incluindo projetos, honorários e administração), reserva, juros de obra, lucro desejado e corretagem. Cada valor entra uma vez.</p>
+                       {result.aporteParaAreaPlanejada > 0 && <p className="mt-2 text-xs text-destructive">Aporte adicional para esta área: {BRL.format(result.aporteParaAreaPlanejada)}.</p>}
                     </div>
                   </>
                 )}

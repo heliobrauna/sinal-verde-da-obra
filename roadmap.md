@@ -25,3 +25,9 @@
 - [x] Permitir editar e recalcular simulações existentes
 - [x] Diferenciar o resumo para morar e os cenários de venda com prazo e divisão com investidor
 - [x] Validar cálculos, salvamento e apresentação; deixar fluxo de caixa mensal para depois
+- [x] Incorporar entrada em dinheiro, FGTS pretendido, ágio e quitação do lote sem transformar patrimônio em caixa
+- [x] Converter taxa anual em mensal equivalente composta e preservar taxas mensais antigas ao editar
+- [x] Restaurar faixa de área viável de BDI 18% a 0% e detalhar a composição da operação
+- [x] Sugerir prazo e liberações mensais editáveis da PCI, exclusivamente sobre financiamento da construção
+- [x] Calcular juros estimados de obra e capital aportado pelo investidor a partir de despesas pré-contrato
+- [ ] Validar os cálculos, a edição e a apresentação em desktop e celular
