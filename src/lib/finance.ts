@@ -60,22 +60,24 @@ export function suggestedExecutionMonths(area: number) {
 }
 
 function resample(values: number[], count: number) {
+  if (values.length === 0) return Array.from({ length: count }, () => 100 / count);
   const sampled = Array.from({ length: count }, (_, index) => {
     const position = count === 1 ? 0 : index * (values.length - 1) / (count - 1);
     const low = Math.floor(position);
     const high = Math.min(values.length - 1, Math.ceil(position));
     const fraction = position - low;
-    return values[low] * (1 - fraction) + values[high] * fraction;
+    return (values[low] ?? 0) * (1 - fraction) + (values[high] ?? 0) * fraction;
   });
   const total = sampled.reduce((sum, value) => sum + value, 0);
   const rounded = sampled.map((value) => Math.round(value / total * 10000) / 100);
-  rounded[rounded.length - 1] += Math.round((100 - rounded.reduce((sum, value) => sum + value, 0)) * 100) / 100;
+  const last = rounded.length - 1;
+  rounded[last] = (rounded[last] ?? 0) + Math.round((100 - rounded.reduce((sum, value) => sum + value, 0)) * 100) / 100;
   return rounded;
 }
 
 export function pciReleases(months: number): MonthlyRelease[] {
   const safeMonths = Math.min(24, Math.max(1, Math.round(months)));
-  const percentages = PCI_PRESETS[safeMonths] ?? resample(PCI_PRESETS[13], safeMonths);
+  const percentages = PCI_PRESETS[safeMonths] ?? resample(PCI_PRESETS[13] ?? [100], safeMonths);
   return percentages.map((percentual, index) => ({ mes: index + 1, percentual }));
 }
 
