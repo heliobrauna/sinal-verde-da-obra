@@ -545,7 +545,7 @@ function Wizard() {
                 </div>
                 <div className="border-t pt-7">
                   <div className="grid items-end gap-4 sm:grid-cols-[1fr_180px]">
-                    <div><h2 className="font-semibold">Liberações mensais da PCI</h2><p className="mt-1 text-xs text-muted-foreground">Incidem somente sobre {BRL.format(result.financiamentoConstrucao)} destinados à construção. A quitação do lote fica separada.</p></div>
+                    <div><h2 className="font-semibold">Liberações mensais da PCI</h2><p className="mt-1 text-xs text-muted-foreground">Incidem somente sobre {BRL.format(result.financiamentoConstrucao)} destinados à construção. A quitação do lote fica separada. Cada liberação é prevista ao fim do mês, após a medição.</p></div>
                     <div><Label>Prazo estimado da obra</Label><select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={prazoExecucao} onChange={(event) => { const months = Number(event.target.value); setPrazoEditado(true); setPrazoExecucao(months); setLiberacoes(pciReleases(months)); }}>{Array.from({ length: 19 }, (_, index) => index + 6).map((months) => <option key={months} value={months}>{months} meses</option>)}</select></div>
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">

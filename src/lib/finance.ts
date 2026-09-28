@@ -149,10 +149,11 @@ export function calculate(input: SimulationInput) {
   let saldoLiberado = 0;
   let jurosObra = 0;
   const liberacoesMensais = input.liberacoes.map((item) => {
-    const liberacao = financiamentoConstrucao * item.percentual / 100;
-    saldoLiberado += liberacao;
+    // A medição libera recursos ao fim do mês; os encargos incidem sobre o saldo já liberado.
     const encargo = saldoLiberado * taxaMensal;
     jurosObra += encargo;
+    const liberacao = financiamentoConstrucao * item.percentual / 100;
+    saldoLiberado += liberacao;
     return { ...item, liberacao, saldoLiberado, encargo };
   });
   const contingencia = recursosUtilizaveis * 0.2;
