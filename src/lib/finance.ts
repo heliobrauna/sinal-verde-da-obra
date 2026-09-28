@@ -24,6 +24,7 @@ export type SimulationInput = {
   cub: number;
   maoDeObra: number;
   materiais: number;
+  areaPlanejada: number;
   extras: Extra[];
   objetivo: "morar" | "vender";
   lucro: number;
@@ -162,9 +163,11 @@ export function calculate(input: SimulationInput) {
   const areaViavelMaxima = custoM2 > 0 ? disponivel / custoM2 : 0;
   const areaViavelMinima = custoM2 > 0 ? disponivel / (custoM2 * 1.18) : 0;
   const areaViavel = areaViavelMinima;
-  const custoConstrucao = areaViavel * custoM2;
+  const areaPlanejada = input.areaPlanejada > 0 ? input.areaPlanejada : areaViavelMinima;
+  const custoConstrucao = areaPlanejada * custoM2;
   const custoObra = custoConstrucao + extrasTotal + despesasTotal;
   const custoTotal = custoObra + jurosObra + contingencia;
+  const aporteParaAreaPlanejada = Math.max(custoTotal + input.lucro - recursosUtilizaveis, 0);
   const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
   const valorVenda = input.objetivo === "vender" ? (custoTotal + input.lucro) / (1 - taxaCorretagem) : recursosUtilizaveis;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
@@ -186,7 +189,7 @@ export function calculate(input: SimulationInput) {
     };
   });
   return {
-    areaViavel, areaViavelMinima, areaViavelMaxima, custoM2,
+    areaViavel, areaViavelMinima, areaViavelMaxima, areaPlanejada, aporteParaAreaPlanejada, custoM2,
     maoDeObra: input.maoDeObra, materiais: input.materiais,
     cubReferenciaValor: input.cub, cubMaisDez: input.cub * 1.1,
     extrasTotal, despesasTotal, despesasPreContrato, despesas: input.despesas,

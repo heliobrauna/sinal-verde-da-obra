@@ -28,6 +28,8 @@ type R = {
   cubReferenciaValor?: number;
   cubMaisDez?: number;
   custoConstrucao?: number;
+  areaPlanejada?: number;
+  aporteParaAreaPlanejada?: number;
   custoTotal?: number;
   jurosPosObra?: number;
   parcelasEstimadas?: number;
@@ -217,7 +219,7 @@ function Result() {
           ))}
         </section>
       )}
-      {item.objetivo === "vender" && r.custoTotal !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Composição do preço</h2><p className="mt-2">Construção {BRL.format(r.custoConstrucao ?? 0)} · extras {BRL.format(r.extrasTotal)} · despesas {BRL.format(r.despesasTotal ?? 0)} (projetos, honorários e administração inclusos) · reserva {BRL.format(r.contingencia)} · juros da obra {BRL.format((r.custoTotal ?? 0) - (r.custoConstrucao ?? 0) - r.extrasTotal - (r.despesasTotal ?? 0) - r.contingencia)} · lucro {BRL.format(r.lucroDesejado ?? 0)} · corretagem {BRL.format(r.corretagemValor ?? 0)}</p></section>}
+       {item.objetivo === "vender" && r.custoTotal !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Composição do preço</h2><p className="mt-2">Área planejada {NUMBER.format(r.areaPlanejada ?? r.areaViavel)} m² · construção {BRL.format(r.custoConstrucao ?? 0)} · extras {BRL.format(r.extrasTotal)} · despesas {BRL.format(r.despesasTotal ?? 0)} (projetos, honorários e administração inclusos) · reserva {BRL.format(r.contingencia)} · juros da obra {BRL.format((r.custoTotal ?? 0) - (r.custoConstrucao ?? 0) - r.extrasTotal - (r.despesasTotal ?? 0) - r.contingencia)} · lucro {BRL.format(r.lucroDesejado ?? 0)} · corretagem {BRL.format(r.corretagemValor ?? 0)}</p>{(r.aporteParaAreaPlanejada ?? 0) > 0 && <p className="mt-2 text-destructive">Aporte adicional para a área planejada: {BRL.format(r.aporteParaAreaPlanejada ?? 0)}</p>}</section>}
        {item.objetivo === "vender" && r.mesesAposObra !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Venda e investidor</h2><p className="mt-2">Venda {r.mesesAposObra} mês(es) após conclusão · encargos pós-obra estimados {BRL.format(r.jurosPosObra ?? 0)} · parcelas estimadas {BRL.format(r.parcelasEstimadas ?? 0)} · capital aportado pelo investidor {BRL.format(r.capitalAportadoInvestidor ?? r.capitalInvestidor ?? 0)} · participação {r.participacaoInvestidor ?? 0}%</p><p className="mt-2 text-xs text-muted-foreground">Capital estimado como despesas pré-contrato e juros de obra. Parcelas são saídas de caixa, incluindo amortização ilustrativa em 360 meses, que não é despesa adicional. Retorno pressupõe que o investidor arque com esse capital; confirme as condições contratuais.</p></section>}
       {item.objetivo === "vender" && <section className="mt-10">
         <h2 className="text-xl font-semibold">Três cenários</h2>

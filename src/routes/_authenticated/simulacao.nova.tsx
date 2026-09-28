@@ -137,6 +137,7 @@ function Wizard() {
   const [jurosAnuais, setJurosAnuais] = useState(10);
   const [maoDeObra, setMaoDeObra] = useState(0);
   const [materiais, setMateriais] = useState(0);
+  const [areaPlanejada, setAreaPlanejada] = useState(0);
   const [extras, setExtras] = useState<Extra[]>(
     suggestions.map((descricao) => ({ descricao, valor: 0 })),
   );
@@ -157,7 +158,7 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
     [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
   const estimates = useMemo(
@@ -180,6 +181,7 @@ function Wizard() {
         cub,
         maoDeObra,
         materiais,
+        areaPlanejada,
         extras,
         objetivo,
         lucro,
@@ -191,7 +193,7 @@ function Wizard() {
         despesas,
         participacaoInvestidor,
       }),
-    [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -209,6 +211,7 @@ function Wizard() {
        setPercentualFinanciavelLote(saved.percentualFinanciavelLote ?? 80);
        setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
+       setAreaPlanejada(saved.areaPlanejada ?? saved.areaViavelMinima ?? saved.areaViavel ?? 0);
       setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
       setCronograma(saved.cronograma?.map(({ nome, percentual }) => ({ nome, percentual })) ?? stages);
        if (saved.liberacoesMensais?.length) {
@@ -267,6 +270,7 @@ function Wizard() {
       return;
     }
     setErro("");
+    if (step === 3 && areaPlanejada <= 0) setAreaPlanejada(result.areaViavelMinima);
     setStep(Math.min(4, step + 1));
   }
   async function save() {
@@ -573,6 +577,7 @@ function Wizard() {
                   </div>
                 </div>
                 {field(objetivo === "morar" ? "Remuneração ou margem do responsável" : "Lucro desejado", lucro, setLucro)}
+                 <div>{field("Área planejada para orçamento (m²)", areaPlanejada, setAreaPlanejada, false)}<p className="mt-1 text-xs text-muted-foreground">O preço acompanha os custos desta área; compare com a faixa viável abaixo.</p></div>
                 {field("Honorários desejados", honorarios, setHonorarios)}
                 {field("Projetos", projetos, setProjetos)}
                 {field(
@@ -593,6 +598,7 @@ function Wizard() {
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
                       <p className="mt-2 text-xs text-muted-foreground">Construção, despesas (incluindo projetos, honorários e administração), reserva, juros de obra, lucro desejado e corretagem. Cada valor entra uma vez.</p>
+                       {result.aporteParaAreaPlanejada > 0 && <p className="mt-2 text-xs text-destructive">Aporte adicional para esta área: {BRL.format(result.aporteParaAreaPlanejada)}.</p>}
                     </div>
                   </>
                 )}
