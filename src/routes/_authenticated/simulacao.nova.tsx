@@ -275,6 +275,9 @@ function Wizard() {
     if (corretagem < 0 || corretagem >= 100 || participacaoInvestidor < 0 || participacaoInvestidor > 100 || prazo < 0) {
       setErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
     }
+    if (percentualFinanciavelLote <= 0 || percentualFinanciavelLote > 100 || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
+      setErro("Revise o percentual financiável do lote e os dois cronogramas: cada um deve somar 100%."); return;
+    }
     const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides };
     if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
@@ -377,7 +380,7 @@ function Wizard() {
                    <p><span className="text-muted-foreground">Ágio reconhecido</span><strong className="mt-1 block">{BRL.format(baseResult.agioLote)}</strong></p>
                    <p><span className="text-muted-foreground">Entrada total reconhecida</span><strong className="mt-1 block">{BRL.format(baseResult.entradaTotalReconhecida)}</strong></p>
                    <p><span className="text-muted-foreground">Financiamento para construção</span><strong className="mt-1 block">{BRL.format(baseResult.financiamentoConstrucao)}</strong></p>
-                   {situacao === "financiado" && <p className="text-xs text-muted-foreground sm:col-span-3">Quitação estimada do lote: {BRL.format(baseResult.quitacaoLote)}. Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}. O percentual definitivo depende da avaliação e das regras do banco.</p>}
+                 {situacao === "financiado" && <p className="text-xs text-muted-foreground sm:col-span-3">Quitação estimada do lote: {BRL.format(baseResult.quitacaoLote)}. Saldo não coberto: {BRL.format(baseResult.saldoLoteNaoCoberto)}. Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}. O percentual definitivo depende da avaliação e das regras do banco.</p>}
                  </div>
               </div>
             )}

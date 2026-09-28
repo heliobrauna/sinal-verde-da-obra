@@ -137,10 +137,11 @@ export function calculate(input: SimulationInput) {
   const percentualFinanciavelLote = Math.min(100, Math.max(0, input.percentualFinanciavelLote));
   const limiteFinanciavelLote = input.terreno * percentualFinanciavelLote / 100;
   const quitacaoLote = Math.min(input.credito, saldoDevedor, limiteFinanciavelLote);
+  const saldoLoteNaoCoberto = Math.max(saldoDevedor - quitacaoLote, 0);
   const avaliacaoMinimaLote = percentualFinanciavelLote > 0 ? saldoDevedor / (percentualFinanciavelLote / 100) : 0;
   const financiamentoConstrucao = Math.max(input.credito - quitacaoLote, 0);
   const entradaTotalReconhecida = input.entradaDinheiro + input.fgtsUtilizado + agioLote;
-  const recursosUtilizaveis = financiamentoConstrucao + input.entradaDinheiro + input.fgtsUtilizado;
+  const recursosUtilizaveis = Math.max(financiamentoConstrucao + input.entradaDinheiro + input.fgtsUtilizado - saldoLoteNaoCoberto, 0);
   const taxaMensalPercentual = annualToMonthlyRate(input.jurosAnuais);
   const taxaMensal = taxaMensalPercentual / 100;
   let saldoLiberado = 0;
@@ -168,8 +169,8 @@ export function calculate(input: SimulationInput) {
   const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / 360 * mesesAposObra);
   const capitalAportadoInvestidor = despesasPreContrato + jurosObra;
   const participacaoInvestidor = Math.min(100, Math.max(0, input.participacaoInvestidor));
-  const entradaLivreInicioObra = Math.max(input.entradaDinheiro - despesasPreContrato, 0);
-  const aporteAdicional = Math.max(despesasPreContrato + jurosObra - input.entradaDinheiro - input.fgtsUtilizado, 0);
+  const entradaLivreInicioObra = Math.max(input.entradaDinheiro - despesasPreContrato - saldoLoteNaoCoberto, 0);
+  const aporteAdicional = Math.max(despesasPreContrato + saldoLoteNaoCoberto + jurosObra - input.entradaDinheiro - input.fgtsUtilizado, 0);
   const cenarios = [-0.15, 0, 0.15].map((ajuste, index) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
@@ -194,7 +195,7 @@ export function calculate(input: SimulationInput) {
     terreno: input.terreno, saldoDevedor, entradaDinheiro: input.entradaDinheiro,
     fgtsUtilizado: input.fgtsUtilizado, agioLote, entradaTotalReconhecida,
     percentualFinanciavelLote, limiteFinanciavelLote, avaliacaoMinimaLote,
-    quitacaoLote, financiamentoConstrucao, recursosUtilizaveis,
+    quitacaoLote, saldoLoteNaoCoberto, financiamentoConstrucao, recursosUtilizaveis,
     entradaLivreInicioObra, aporteAdicional,
     taxaJurosAnual: input.jurosAnuais, taxaJurosMensalEquivalente: taxaMensalPercentual,
     prazoExecucaoMeses: input.liberacoes.length, liberacoesMensais,

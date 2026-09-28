@@ -55,6 +55,7 @@ type R = {
   percentualFinanciavelLote?: number;
   avaliacaoMinimaLote?: number;
   quitacaoLote?: number;
+  saldoLoteNaoCoberto?: number;
   financiamentoConstrucao?: number;
   recursosUtilizaveis?: number;
   despesasPreContrato?: number;
@@ -188,6 +189,7 @@ function Result() {
             ["Entrada total reconhecida", r.entradaTotalReconhecida],
             ["Financiamento total", item.credito_aprovado],
             ["Quitação estimada do lote", r.quitacaoLote ?? 0],
+            ["Saldo do lote não coberto", r.saldoLoteNaoCoberto ?? 0],
             ["Financiamento da construção", r.financiamentoConstrucao ?? 0],
             ["Recursos utilizáveis na operação", r.recursosUtilizaveis ?? 0],
             ["Despesas pré-contrato", r.despesasPreContrato ?? 0],
