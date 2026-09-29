@@ -28,11 +28,13 @@ import {
   pciReleases,
   suggestedExecutionMonths,
   type ClientExpense,
+  type OrigemTerreno,
   type Extra,
   type MonthlyRelease,
   type Stage,
 } from "@/lib/finance";
 import { getResidentialCub } from "@/lib/cub.functions";
+import { getSelicMeta } from "@/lib/selic.functions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -91,11 +93,41 @@ const ufs = [
   "TO",
 ];
 const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a obra"] as const;
+const ORIGEM_NOTA: Record<OrigemTerreno, string> = {
+  investidor: "O ágio do lote compõe a entrada e conta como capital do investidor, com retorno preferencial. Lote quitado e registrado no nome dele não paga ITBI nem registro de compra.",
+  construtor: "O construtor vende o lote ao investidor: há ITBI e registro, e o ágio não serve de entrada (FGTS ou dinheiro). O construtor recebe o preço do lote na assinatura e pode usá-lo para iniciar a obra.",
+  compra: "O lote é comprado de terceiro na operação: há ITBI e registro, não existe ágio e a entrada precisa vir de FGTS ou dinheiro.",
+};
+const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const HELP = {
+  selic: "Meta Selic anual, consultada automaticamente no Banco Central. É a referência de renda fixa segura (Tesouro Selic) que a operação precisa superar.",
+  premio: "Pontos percentuais ao ano acima da Selic líquida de IR para compensar a falta de liquidez e os riscos de obra, de venda e da dívida no nome do investidor.",
+  participacao: "Parte do investidor no que sobrar depois de devolvido o capital dele e pago o retorno preferencial (Selic líquida + prêmio).",
   imovel: "Valor total informado no simulador da Caixa: terreno + orçamento da obra. É a base que o banco avalia para definir o financiamento.",
   entrada: "Diferença entre o valor do imóvel e o financiamento. Não é um pagamento ao banco: é o valor que você precisa comprovar que tem (ágio do lote, FGTS e dinheiro em conta) para o banco considerar o contrato viável. Guarde esses recursos: a obra exige aportes relevantes antes da primeira liberação.",
   financiamento: "Valor que o banco empresta. Primeiro quita o saldo devedor do lote, se houver; o restante é liberado em parcelas conforme a medição da obra, nunca de uma vez.",
 };
+
+function InvestorSummary({ result }: { result: ReturnType<typeof calculate> }) {
+  return (
+    <div className="rounded-md border px-4 py-3 md:col-span-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Capital do investidor</p>
+        <p className="font-semibold">{BRL.format(result.capitalAportadoInvestidor)}</p>
+      </div>
+      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+        {Object.entries(result.aportesInvestidor.reduce<Record<string, number>>((acc, flow) => ({ ...acc, [flow.rotulo]: (acc[flow.rotulo] ?? 0) + flow.valor }), {})).map(([rotulo, valor]) => (
+          <li key={rotulo} className="flex justify-between gap-3"><span>{rotulo}</span><span>{BRL.format(valor)}</span></li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Retorno preferencial: {pct(result.taxaPreferencial)} a.a. (Selic {pct(result.selicAnual)} − IR {pct(result.aliquotaIr)} + prêmio) = {BRL.format(result.retornoPreferencial)} até a venda, no mês {result.mesVenda}.
+        {result.capitalGiro > 0 && " O capital de giro volta com as liberações, ao fim da obra."}
+        {result.recebimentoConstrutorLote > 0 && ` O construtor recebe ${BRL.format(result.recebimentoConstrutorLote)} pelo lote na assinatura${result.capitalGiro > 0 ? `; se usar parte disso no início da obra, o capital de giro de ${BRL.format(result.capitalGiro)} deixa de sair do investidor` : ""}.`}
+      </p>
+    </div>
+  );
+}
 
 function InfoTip({ label, text }: { label: string; text: string }) {
   return (
@@ -138,11 +170,16 @@ function Wizard() {
   const nav = useNavigate();
   const { editar } = Route.useSearch();
   const fetchCub = useServerFn(getResidentialCub);
+  const fetchSelic = useServerFn(getSelicMeta);
   const [loadingEdit, setLoadingEdit] = useState(Boolean(editar));
   const [step, setStep] = useState(1);
   const [nome, setNome] = useState("Minha obra");
   const [terreno, setTerreno] = useState(0);
   const [situacao, setSituacao] = useState<"quitado" | "financiado">("quitado");
+  const [origemTerreno, setOrigemTerreno] = useState<OrigemTerreno>("investidor");
+  const [selicAnual, setSelicAnual] = useState(0);
+  const [selicFonte, setSelicFonte] = useState("");
+  const [premioInvestidor, setPremioInvestidor] = useState(5);
   const [saldo, setSaldo] = useState(0);
   const [renda, setRenda] = useState(0);
   const [credito, setCredito] = useState(0);
@@ -180,13 +217,15 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
-    [credito, terreno, situacao, saldo, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
+  // ITBI e registro de compra só quando o lote muda de dono na operação.
+  const transferenciaLote = origemTerreno !== "investidor" || (situacao === "financiado" && saldo > 0);
   const estimates = useMemo(
     // Alvará e INSS acompanham a área planejada; antes de defini-la, usam a área viável.
-    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada > 0 ? areaPlanejada : baseResult.areaViavelMaxima, estado, primeiroImovelSfh),
-    [terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada, baseResult.areaViavelMaxima, estado, primeiroImovelSfh],
+    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada > 0 ? areaPlanejada : baseResult.areaViavelMaxima, estado, primeiroImovelSfh, transferenciaLote),
+    [terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada, baseResult.areaViavelMaxima, estado, primeiroImovelSfh, transferenciaLote],
   );
   const despesas = useMemo(
     () => estimates.map((item) => ({ ...item, valor: expenseOverrides[item.id] ?? item.valor })),
@@ -216,8 +255,11 @@ function Wizard() {
         liberacoes,
         despesas,
         participacaoInvestidor,
+        origemTerreno,
+        selicAnual,
+        premioInvestidor,
       }),
-    [credito, terreno, situacao, saldo, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -247,12 +289,25 @@ function Wizard() {
       setCorretagem(saved.corretagemPercentual ?? 5); setPrazo(saved.mesesAposObra ?? data.prazo_venda_meses ?? 0);
        setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
       setPrimeiroImovelSfh(saved.primeiroImovelSfh ?? false);
+      setOrigemTerreno(saved.origemTerreno ?? "investidor");
+      setPremioInvestidor(saved.premioInvestidor ?? 5);
+      if (saved.selicAnual) { setSelicAnual(saved.selicAnual); setSelicFonte("valor salvo na simulação"); }
       setProjetos(saved.projetos ?? 0); setAdministracao(saved.administracao ?? 0); setHonorarios(saved.honorarios ?? 0);
       setExpenseOverrides(saved.expenseOverrides ?? Object.fromEntries((saved.despesas ?? []).map((x) => [x.id, x.valor])));
       setLoadingEdit(false);
     });
     return () => { active = false; };
   }, [editar]);
+  useEffect(() => {
+    if (loadingEdit || selicFonte) return;
+    let active = true;
+    fetchSelic().then((data) => {
+      if (!active) return;
+      if (data.oficial) { setSelicAnual(data.valor); setSelicFonte(`meta Selic do Banco Central em ${data.data}`); }
+      else setSelicFonte("não foi possível consultar o Banco Central; informe a taxa");
+    });
+    return () => { active = false; };
+  }, [loadingEdit, selicFonte, fetchSelic]);
   useEffect(() => {
     let active = true;
     setCubLoading(true);
@@ -393,8 +448,17 @@ function Wizard() {
                     onChange={(e) => setNome(e.target.value)}
                   />
                 </div>
-                {field("Valor do terreno", terreno, setTerreno)}
-                <div>
+                <div className="md:col-span-2">
+                  <Label>Origem do terreno</Label>
+                  <select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={origemTerreno} onChange={(e) => setOrigemTerreno(e.target.value as OrigemTerreno)}>
+                    <option value="investidor">Próprio (de quem vai financiar)</option>
+                    <option value="construtor">Do construtor, vendido na operação</option>
+                    <option value="compra">Comprado de terceiro na operação</option>
+                  </select>
+                  <p className="mt-2 text-xs text-muted-foreground">{ORIGEM_NOTA[origemTerreno]}</p>
+                </div>
+                {field(origemTerreno === "investidor" ? "Valor do terreno" : "Preço de compra do terreno", terreno, setTerreno)}
+                {origemTerreno === "investidor" && <div>
                   <Label>Situação do terreno</Label>
                   <select
                     className="mt-2 h-11 w-full rounded-md border bg-background px-3"
@@ -404,9 +468,9 @@ function Wizard() {
                     <option value="quitado">Quitado</option>
                     <option value="financiado">Financiado</option>
                   </select>
-                </div>
-                {situacao === "financiado" && field("Saldo devedor", saldo, setSaldo)}
-                 {situacao === "financiado" && field("Percentual máximo financiável do lote (%)", percentualFinanciavelLote, setPercentualFinanciavelLote, false)}
+                </div>}
+                {origemTerreno === "investidor" && situacao === "financiado" && field("Saldo devedor", saldo, setSaldo)}
+                 {(origemTerreno !== "investidor" || situacao === "financiado") && field("Percentual máximo financiável do lote (%)", percentualFinanciavelLote, setPercentualFinanciavelLote, false)}
                 {field("Renda declarada", renda, setRenda)}
                 <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-3">
                   <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-3">Simulador da Caixa</p>
@@ -435,7 +499,7 @@ function Wizard() {
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">Orçamento da obra no contrato (imóvel − terreno): <strong className="text-foreground">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
                   {baseResult.financiamentoExcedente > 0 && <p className="mt-3 text-xs text-secondary">O ágio cobre mais que a entrada: o banco tende a liberar no máximo {BRL.format(baseResult.financiamentoConstrucao)} para a obra ({BRL.format(baseResult.financiamentoExcedente)} a menos que o valor informado).</p>}
-                  {situacao === "financiado" && <p className="mt-3 text-xs text-muted-foreground">Quitação do lote pelo banco: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}.</p>}
+                  {(origemTerreno !== "investidor" || situacao === "financiado") && <p className="mt-3 text-xs text-muted-foreground">{origemTerreno === "investidor" ? "Quitação do lote pelo banco" : "Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}.</p>}
                 </div>
               </div>
             )}
@@ -644,8 +708,11 @@ function Wizard() {
                       <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
                     </div>
                     {field("Meses após conclusão até a venda (0 = venda na planta)", prazo, setPrazo, false)}
-                    <div><Label>Participação do investidor no resultado (%)</Label><NumericInput className="mt-2 h-11" value={participacaoInvestidor} decimals={2} onValueChange={setParticipacaoInvestidor} /></div>
-                     <div className="flex items-center rounded-md border px-4 py-3"><div><p className="text-sm text-muted-foreground">Capital aportado pelo investidor</p><p className="font-semibold">{BRL.format(result.capitalAportadoInvestidor)}</p><p className="text-xs text-muted-foreground">Despesas pré-obra (antes do contrato e assinatura) + 10% da obra para o início. Não inclui a entrada.</p></div></div>
+                    {field("Selic anual (% a.a.)", selicAnual, (value) => { setSelicAnual(value); setSelicFonte(selicFonte || "informada manualmente"); }, false, HELP.selic)}
+                    {field("Prêmio mínimo sobre a Selic líquida (p.p. a.a.)", premioInvestidor, setPremioInvestidor, false, HELP.premio)}
+                    {field("Participação do investidor no excedente (%)", participacaoInvestidor, setParticipacaoInvestidor, false, HELP.participacao)}
+                    {selicFonte && <p className="self-end text-xs text-muted-foreground">Selic: {selicFonte}.</p>}
+                    <InvestorSummary result={result} />
                     <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
@@ -671,7 +738,7 @@ function Wizard() {
                     Valores municipais, cartorários e previdenciários são estimativas editáveis.
                   </p>
                 </div>
-                 {objetivo === "vender" && <div className="md:col-span-2 border-y py-4"><p className="text-sm font-semibold">Cenários de venda</p><p className="mt-1 text-xs text-muted-foreground">Variação de 15% no valor de venda. Encargos pós-obra são estimativas; parcelas incluem amortização linear ilustrativa em 360 meses. Confirme as condições contratuais.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">{result.cenarios.map(c => <div key={c.nome} className="border-l border-border pl-3"><p className="text-sm font-semibold">{c.nome}</p><p className="text-sm">Venda {BRL.format(c.venda)}</p><p className="text-sm">Resultado {BRL.format(c.saldo)}</p><p className="text-xs text-muted-foreground">Construtor {BRL.format(c.lucroConstrutor)} · Investidor {BRL.format(c.lucroInvestidor)}</p><p className="text-xs text-muted-foreground">Retorno do investidor: {c.rentabilidadeInvestidor === null ? "—" : `${c.rentabilidadeInvestidor.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</p></div>)}</div><p className="mt-3 text-xs text-muted-foreground">Capital aportado: {BRL.format(result.capitalAportadoInvestidor)} · {prazo} meses após a obra · encargos estimados {BRL.format(result.jurosPosObra)} · parcelas estimadas {BRL.format(result.parcelasEstimadas)}.</p></div>}
+                 {objetivo === "vender" && <div className="md:col-span-2 border-y py-4"><p className="text-sm font-semibold">Cenários de venda</p><p className="mt-1 text-xs text-muted-foreground">Variação de 15% no valor de venda. A venda devolve o capital do investidor, paga o retorno preferencial e só então divide o excedente.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">{result.cenarios.map(c => <div key={c.nome} className="border-l border-border pl-3"><p className="text-sm font-semibold">{c.nome}</p><p className="text-sm">Venda {BRL.format(c.venda)}</p><p className="text-sm">Lucro {BRL.format(c.saldo)}</p><p className="text-xs text-muted-foreground">Investidor {BRL.format(c.lucroInvestidor)} · Construtor {BRL.format(c.lucroConstrutor)}</p>{c.rentabilidadeInvestidor !== null && <p className={`text-xs font-semibold ${c.superaSelic ? "text-primary" : "text-destructive"}`}>Investidor: {pct(c.rentabilidadeInvestidor)} a.a. · Selic líq. {pct(result.selicLiquida)}</p>}</div>)}</div>{(result.cenarios[1]?.excedente ?? 0) <= 0 && result.retornoPreferencial > 0 && <p className="mt-3 text-xs text-secondary">No cenário realista, o lucro não cobre o retorno preferencial e o construtor não recebe nada. Para sobrar excedente, o lucro desejado precisa passar de {BRL.format(result.retornoPreferencial + result.jurosPosObra)}.</p>}</div>}
                 <div className="md:col-span-2 rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
                    <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a {result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>

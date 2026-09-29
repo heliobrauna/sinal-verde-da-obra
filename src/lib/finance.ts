@@ -16,6 +16,32 @@ export type ClientExpense = {
   fonteUrl?: string;
   observacao: string;
 };
+export type OrigemTerreno = "investidor" | "construtor" | "compra";
+type InvestorFlow = { mes: number; rotulo: string; valor: number; retornoMes?: number };
+
+// Alíquota regressiva de IR da renda fixa (Tesouro Selic) pelo prazo em meses.
+export function irAliquota(meses: number) {
+  const dias = meses * 30;
+  if (dias <= 180) return 22.5;
+  if (dias <= 360) return 20;
+  if (dias <= 720) return 17.5;
+  return 15;
+}
+
+// Taxa interna de retorno mensal por bisseção; fluxos negativos são aportes e positivos, retornos.
+function irr(flows: { mes: number; valor: number }[]) {
+  const npv = (rate: number) => flows.reduce((sum, flow) => sum + flow.valor / Math.pow(1 + rate, flow.mes), 0);
+  let low = -0.99;
+  let high = 1;
+  if (npv(low) * npv(high) > 0) return null;
+  for (let i = 0; i < 200; i++) {
+    const mid = (low + high) / 2;
+    if (npv(low) * npv(mid) <= 0) high = mid;
+    else low = mid;
+  }
+  return (low + high) / 2;
+}
+
 export type SimulationInput = {
   credito: number;
   terreno: number;
@@ -38,6 +64,9 @@ export type SimulationInput = {
   liberacoes: MonthlyRelease[];
   despesas: ClientExpense[];
   participacaoInvestidor: number;
+  origemTerreno: OrigemTerreno;
+  selicAnual: number;
+  premioInvestidor: number;
 };
 
 const PCI_PRESETS: Record<number, number[]> = {
@@ -103,6 +132,7 @@ export function estimatedExpenses(
   area: number,
   estado = "",
   primeiroImovelSfh = false,
+  transferenciaLote = true,
 ): ClientExpense[] {
   const common = { fonte: "Estimativa editável", observacao: "Confirme o valor real antes da contratação." };
   const areaAte100 = Math.min(area, 100);
@@ -111,7 +141,7 @@ export function estimatedExpenses(
   const areaAcima300 = Math.max(area - 300, 0);
   const remuneracaoEstimada = cub * (areaAte100 * 0.04 + areaAte200 * 0.08 + areaAte300 * 0.14 + areaAcima300 * 0.2);
   const inssEstimado = remuneracaoEstimada * 0.368;
-  const registroCompra = registroEstimate(estado, terreno, primeiroImovelSfh);
+  const registroCompra = registroEstimate(estado, transferenciaLote ? terreno : 0, primeiroImovelSfh);
   const registroAlienacao = registroEstimate(estado, credito, primeiroImovelSfh);
   const descontoSfh = primeiroImovelSfh ? " Inclui 50% de desconto do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH)." : "";
   const registroObservacao = (registro: typeof registroCompra, base: string) =>
@@ -127,7 +157,7 @@ export function estimatedExpenses(
     { id: "matricula-renovacao", categoria: "Assinatura do contrato", nome: "Renovação da certidão", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
     { id: "taxa-caixa", categoria: "Assinatura do contrato", nome: "Taxa de contratação Caixa", valor: 750, fonte: "Caixa Habitação", fonteUrl: "https://www.caixa.gov.br/voce/habitacao/construcao/Paginas/default.aspx", observacao: "Valor solicitado como referência; confirme na tabela vigente." },
     { id: "relacionamento", categoria: "Assinatura do contrato", nome: "Produtos de relacionamento", valor: credito * 0.01, fonte: "Sugestão de 1% do valor financiado", observacao: "Não é taxa obrigatória; depende da negociação." },
-    { id: "itbi", categoria: "Assinatura do contrato", nome: "ITBI do lote", valor: terreno * 0.02, fonte: "Prefeitura do município", observacao: "Estimativa de 2% apenas sobre o lote; a alíquota é municipal." },
+    { id: "itbi", categoria: "Assinatura do contrato", nome: "ITBI do lote", valor: transferenciaLote ? terreno * 0.02 : 0, fonte: "Prefeitura do município", observacao: "Estimativa de 2% apenas sobre o lote; a alíquota é municipal." },
     { id: "registro-compra", categoria: "Assinatura do contrato", nome: "Registro de compra e venda", valor: registroCompra.valor, fonte: registroCompra.fonte, fonteUrl: registroCompra.fonteUrl, observacao: registroObservacao(registroCompra, "valor do terreno") },
     { id: "alienacao", categoria: "Assinatura do contrato", nome: "Registro de alienação fiduciária", valor: registroAlienacao.valor, fonte: registroAlienacao.fonte, fonteUrl: registroAlienacao.fonteUrl, observacao: registroObservacao(registroAlienacao, "valor financiado") },
     { id: "matricula-contrato", categoria: "Assinatura do contrato", nome: "Certidão atualizada", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
@@ -153,7 +183,8 @@ export function calculate(input: SimulationInput) {
   const credito = Math.max(0, input.credito);
   const valorOperacao = Math.max(input.valorImovel, credito);
   const entradaExigida = Math.max(valorOperacao - credito, 0);
-  const saldoDevedor = Math.max(0, input.saldoDevedor);
+  // Lote comprado na operação (do construtor ou de terceiro): o preço inteiro é pago ao vendedor e não há ágio.
+  const saldoDevedor = input.origemTerreno === "investidor" ? Math.max(0, input.saldoDevedor) : Math.max(0, input.terreno);
   const agioLote = Math.max(input.terreno - saldoDevedor, 0);
   // Ágio e FGTS compõem a entrada e reduzem o dinheiro necessário; nenhum dos dois vira caixa extra.
   const agioNaEntrada = Math.min(agioLote, entradaExigida);
@@ -216,20 +247,59 @@ export function calculate(input: SimulationInput) {
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
   const jurosPosObra = saldoLiberado * taxaMensal * mesesAposObra;
   const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / 360 * mesesAposObra);
-  // O investidor banca as despesas pré-obra (antes do contrato e assinatura) e 10% da obra para o início,
-  // antes da primeira liberação. A entrada não entra: é comprovação de recursos, não aporte.
-  const capitalAportadoInvestidor = despesasPreContrato + despesasAssinatura + (custoConstrucao + extrasTotal) * 0.1;
+  // Investidor: quem financia no próprio nome. Cada aporte tem um mês (0 = assinatura).
+  const mesesObra = input.liberacoes.length;
+  const mesVenda = mesesObra + mesesAposObra;
+  const patrimonioTerreno = input.origemTerreno === "investidor" ? agioLote : 0;
+  // Entrada em dinheiro e FGTS são aplicados primeiro na obra e reduzem o capital de giro necessário.
+  const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - dinheiroEntrada - fgtsNaEntrada, 0);
+  const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
+  const aportesInvestidor: InvestorFlow[] = [
+    { mes: 0, rotulo: "Terreno (patrimônio)", valor: patrimonioTerreno },
+    { mes: 0, rotulo: "Entrada · FGTS", valor: fgtsNaEntrada },
+    { mes: 0, rotulo: "Entrada · dinheiro", valor: dinheiroEntrada + complementoLote },
+    { mes: 0, rotulo: "Despesas pré-obra", valor: despesasPreContrato + despesasAssinatura },
+    { mes: 0, rotulo: "Recursos extras e aporte de área", valor: aporteProprioObra + aporteParaAreaPlanejada },
+    { mes: 0, rotulo: "Capital de giro inicial (10% da obra)", valor: capitalGiro, retornoMes: mesesObra },
+    ...liberacoesMensais.map((item) => ({ mes: item.mes, rotulo: "Juros de obra", valor: item.encargo })),
+    ...Array.from({ length: mesesAposObra }, (_, index) => ({ mes: mesesObra + index + 1, rotulo: "Parcelas até a venda", valor: parcelaPosObra })),
+  ].filter((flow) => flow.valor > 0.005);
+  const capitalAportadoInvestidor = aportesInvestidor.reduce((sum, flow) => sum + flow.valor, 0);
+  // Capital que volta só na venda (o capital de giro retorna com as liberações, ao fim da obra).
+  const capitalDevolvidoVenda = aportesInvestidor.filter((flow) => flow.retornoMes === undefined).reduce((sum, flow) => sum + flow.valor, 0);
+  const selicAnual = Math.max(input.selicAnual, 0);
+  const aliquotaIr = irAliquota(mesVenda);
+  const selicLiquida = selicAnual * (1 - aliquotaIr / 100);
+  const taxaPreferencial = selicLiquida + Math.max(input.premioInvestidor, 0);
+  const taxaPreferencialMensal = Math.pow(1 + taxaPreferencial / 100, 1 / 12) - 1;
+  const retornoPreferencial = aportesInvestidor.reduce(
+    (sum, flow) => sum + flow.valor * (Math.pow(1 + taxaPreferencialMensal, (flow.retornoMes ?? mesVenda) - flow.mes) - 1),
+    0,
+  );
+  const recebimentoConstrutorLote = input.origemTerreno === "construtor" ? input.terreno : 0;
   const participacaoInvestidor = Math.min(100, Math.max(0, input.participacaoInvestidor));
   const cenarios = [-0.15, 0, 0.15].map((ajuste, index) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
+    // Lucro econômico: venda menos todos os custos, inclusive terreno e encargos até a venda.
     const saldo = venda - corretagem - custoComTerreno - jurosPosObra;
-    // Sem participação, evita "-R$ 0,00" quando o saldo é negativo.
-    const lucroInvestidor = participacaoInvestidor > 0 ? saldo * participacaoInvestidor / 100 : 0;
+    // Cascata: 1) devolve o capital; 2) paga o retorno preferencial; 3) divide o excedente.
+    const preferencialPago = Math.min(Math.max(saldo, 0), retornoPreferencial);
+    const excedente = Math.max(saldo - retornoPreferencial, 0);
+    const excedenteInvestidor = excedente * participacaoInvestidor / 100;
+    const lucroInvestidor = saldo < 0 ? saldo : preferencialPago + excedenteInvestidor;
+    const lucroConstrutor = excedente - excedenteInvestidor;
+    const fluxos = [
+      ...aportesInvestidor.map((flow) => ({ mes: flow.mes, valor: -flow.valor })),
+      ...aportesInvestidor.filter((flow) => flow.retornoMes !== undefined).map((flow) => ({ mes: flow.retornoMes ?? 0, valor: flow.valor })),
+      { mes: mesVenda, valor: capitalDevolvidoVenda + lucroInvestidor },
+    ];
+    const tirMensal = capitalAportadoInvestidor > 0 ? irr(fluxos) : null;
     return {
       nome: ["Pessimista", "Realista", "Otimista"][index], ajuste, venda, corretagem, saldo,
-      lucroInvestidor, lucroConstrutor: saldo - lucroInvestidor,
-      rentabilidadeInvestidor: capitalAportadoInvestidor > 0 ? lucroInvestidor / capitalAportadoInvestidor * 100 : null,
+      preferencialPago, excedente, lucroInvestidor, lucroConstrutor,
+      rentabilidadeInvestidor: tirMensal === null ? null : (Math.pow(1 + tirMensal, 12) - 1) * 100,
+      superaSelic: tirMensal === null ? null : (Math.pow(1 + tirMensal, 12) - 1) * 100 >= selicLiquida,
     };
   });
   return {
@@ -241,7 +311,9 @@ export function calculate(input: SimulationInput) {
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
     lucroDesejado: input.lucro, mesesAposObra, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
-    capitalAportadoInvestidor, participacaoInvestidor, cenarios,
+    capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
+    origemTerreno: input.origemTerreno, selicAnual, aliquotaIr, selicLiquida, premioInvestidor: input.premioInvestidor,
+    taxaPreferencial, retornoPreferencial, mesVenda, recebimentoConstrutorLote,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
     agioLote, agioNaEntrada, fgtsUtilizado: input.fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
     percentualFinanciavelLote, limiteFinanciavelLote, avaliacaoMinimaLote,

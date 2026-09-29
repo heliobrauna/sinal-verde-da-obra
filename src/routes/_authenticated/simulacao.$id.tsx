@@ -35,7 +35,7 @@ type R = {
   despesasTotal?: number;
   despesas?: ClientExpense[];
   cubReferencia?: { competencia: string; projeto: string; origem: string };
-  cenarios: { nome: string; saldo: number; venda?: number; lucroConstrutor?: number; lucroInvestidor?: number; rentabilidadeInvestidor?: number | null }[];
+  cenarios: { nome: string; saldo: number; venda?: number; lucroConstrutor?: number; lucroInvestidor?: number; rentabilidadeInvestidor?: number | null; superaSelic?: boolean | null; preferencialPago?: number }[];
   cronograma: { nome: string; percentual: number; valor: number }[];
   valorVenda?: number;
   corretagemPercentual?: number;
@@ -73,6 +73,17 @@ type R = {
   desembolsoDuranteObra?: number;
   desembolsoProprio?: number;
   maiorEncargoMensal?: number;
+  aportesInvestidor?: { mes: number; rotulo: string; valor: number }[];
+  capitalGiro?: number;
+  selicAnual?: number;
+  selicLiquida?: number;
+  aliquotaIr?: number;
+  premioInvestidor?: number;
+  taxaPreferencial?: number;
+  retornoPreferencial?: number;
+  mesVenda?: number;
+  origemTerreno?: "investidor" | "construtor" | "compra";
+  recebimentoConstrutorLote?: number;
 };
 type Row = [label: string, value: number | undefined];
 
@@ -146,7 +157,9 @@ function Result() {
   const areaMax = r.areaViavelMaxima ?? r.areaViavel;
   const lucro = r.lucroDesejado ?? item.lucro_desejado ?? 0;
   const extras = (item.custos_extras as unknown as { descricao: string; valor: number }[]) ?? [];
-  const investidor = (r.participacaoInvestidor ?? 0) > 0;
+  // Simulações com cascata têm fluxos datados do investidor; as antigas só mostram a participação.
+  const cascata = vender && (r.aportesInvestidor?.length ?? 0) > 0;
+  const investidor = cascata || (r.participacaoInvestidor ?? 0) > 0;
 
   const metrics = [
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
@@ -233,8 +246,12 @@ function Result() {
                   <p className={`mt-1 text-2xl font-bold ${c.saldo >= 0 ? "text-primary" : "text-destructive"}`}>{BRL.format(c.saldo)}</p>
                   {investidor && hasValue(c.lucroInvestidor) && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Investidor {BRL.format(c.lucroInvestidor)}
-                      {c.rentabilidadeInvestidor != null && ` (${NUMBER.format(c.rentabilidadeInvestidor)}%)`} · Construtor {BRL.format(c.lucroConstrutor ?? 0)}
+                      Investidor {BRL.format(c.lucroInvestidor)} · {hasValue(c.lucroConstrutor) ? `Construtor ${BRL.format(c.lucroConstrutor)}` : "sem excedente para o construtor"}
+                    </p>
+                  )}
+                  {cascata && c.rentabilidadeInvestidor != null && (
+                    <p className={`mt-1 text-xs font-semibold ${c.superaSelic ? "text-primary" : "text-destructive"}`}>
+                      Investidor: {NUMBER.format(c.rentabilidadeInvestidor)}% a.a. · Selic líq. {NUMBER.format(r.selicLiquida ?? 0)}%
                     </p>
                   )}
                 </CardContent>
@@ -244,8 +261,26 @@ function Result() {
           {(hasValue(r.mesesAposObra) || investidor) && (
             <p className="mt-2 text-xs text-muted-foreground">
               {hasValue(r.mesesAposObra) && `Venda ${r.mesesAposObra} meses após a obra${hasValue(r.jurosPosObra) ? `, com encargos de ${BRL.format(r.jurosPosObra)}` : ""}. `}
-              {investidor && `Investidor com ${NUMBER.format(r.participacaoInvestidor ?? 0)}% do resultado${hasValue(r.capitalAportadoInvestidor) ? ` e aporte de ${BRL.format(r.capitalAportadoInvestidor)}` : ""}.`}
+              {investidor && !cascata && `Investidor com ${NUMBER.format(r.participacaoInvestidor ?? 0)}% do resultado${hasValue(r.capitalAportadoInvestidor) ? ` e aporte de ${BRL.format(r.capitalAportadoInvestidor)}` : ""}.`}
             </p>
+          )}
+          {cascata && (
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <Rows
+                title="Capital do investidor"
+                rows={Object.entries((r.aportesInvestidor ?? []).reduce<Record<string, number>>((acc, flow) => ({ ...acc, [flow.rotulo]: (acc[flow.rotulo] ?? 0) + flow.valor }), {}))}
+                total={["Total aportado", r.capitalAportadoInvestidor]}
+              />
+              <section>
+                <h2 className="text-lg font-semibold">Divisão na venda (cascata)</h2>
+                <ol className="mt-3 space-y-2 border-y py-3 text-sm">
+                  <li><strong>1. Devolução do capital</strong> do investidor{hasValue(r.capitalGiro) && " (o capital de giro volta antes, com as liberações)"}.</li>
+                  <li><strong>2. Retorno preferencial</strong> de {NUMBER.format(r.taxaPreferencial ?? 0)}% a.a.: Selic {NUMBER.format(r.selicAnual ?? 0)}% − IR {NUMBER.format(r.aliquotaIr ?? 0)}% + prêmio de {NUMBER.format(r.premioInvestidor ?? 0)} p.p. = {BRL.format(r.retornoPreferencial ?? 0)} até o mês {r.mesVenda}.</li>
+                  <li><strong>3. Excedente</strong> dividido: {NUMBER.format(r.participacaoInvestidor ?? 0)}% investidor · {NUMBER.format(100 - (r.participacaoInvestidor ?? 0))}% construtor.</li>
+                </ol>
+                {hasValue(r.recebimentoConstrutorLote) && <p className="mt-2 text-xs text-muted-foreground">O construtor recebe {BRL.format(r.recebimentoConstrutorLote)} pelo lote na assinatura.</p>}
+              </section>
+            </div>
           )}
         </section>
       )}

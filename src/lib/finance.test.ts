@@ -9,7 +9,7 @@ const input: SimulationInput = {
   extras: [], objetivo: "vender", lucro: 30000, corretagem: 5,
   prazo: 0, jurosAnuais: 10, stages: [], liberacoes: pciReleases(6),
   despesas: [{ id: "projetos", categoria: "Despesas iniciais", nome: "Projetos", valor: 10000, fonte: "Estimativa", observacao: "" }],
-  participacaoInvestidor: 50,
+  participacaoInvestidor: 50, origemTerreno: "investidor", selicAnual: 13.75, premioInvestidor: 5,
 };
 
 describe("projeção financeira", () => {
@@ -67,8 +67,36 @@ describe("projeção financeira", () => {
     expect(extra.valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
     expect(calculate({ ...input, lucro: 35000 }).valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
     expect(calculate({ ...input, areaPlanejada: 125 }).valorVenda - initial.valorVenda).toBeCloseTo(10000 / 0.95);
-    expect(initial.capitalAportadoInvestidor).toBeCloseTo(10000 + 120 * 2000 * 0.1);
     expect(estimatedExpenses(0, 0, 0, 0, 0, 0, 100).find((item) => item.id === "alvara")?.valor).toBe(252);
+  });
+
+  it("data o capital do investidor e divide o lucro em cascata", () => {
+    const result = calculate(input);
+    // Patrimônio do lote + despesas pré-obra + 10% da obra + juros de obra.
+    expect(result.capitalAportadoInvestidor).toBeCloseTo(100000 + 10000 + 24000 + result.jurosObra);
+    expect(result.capitalGiro).toBe(24000);
+    const realista = result.cenarios[1]!;
+    expect(realista.lucroInvestidor + realista.lucroConstrutor).toBeCloseTo(realista.saldo);
+    expect(realista.preferencialPago).toBeCloseTo(Math.min(realista.saldo, result.retornoPreferencial));
+    expect(realista.lucroConstrutor).toBeCloseTo(Math.max(realista.saldo - result.retornoPreferencial, 0) / 2);
+  });
+
+  it("com participação zero, o investidor rende exatamente a taxa preferencial", () => {
+    const result = calculate({ ...input, participacaoInvestidor: 0, lucro: 200000 });
+    expect(result.aliquotaIr).toBe(22.5);
+    expect(result.selicLiquida).toBeCloseTo(13.75 * 0.775);
+    expect(result.cenarios[1]?.rentabilidadeInvestidor).toBeCloseTo(result.taxaPreferencial, 1);
+  });
+
+  it("trata lote comprado na operação sem ágio e sem patrimônio do investidor", () => {
+    const result = calculate({ ...input, origemTerreno: "compra" });
+    expect(result.agioLote).toBe(0);
+    expect(result.patrimonioTerreno).toBe(0);
+    expect(result.fgtsNaEntrada).toBe(20000);
+    expect(result.dinheiroEntrada).toBe(80000);
+    const sem = estimatedExpenses(100000, 400000, 0, 0, 0, 2500, 100, "SP", false, false);
+    expect(sem.find((item) => item.id === "itbi")?.valor).toBe(0);
+    expect(sem.find((item) => item.id === "registro-compra")?.valor).toBe(0);
   });
 
   it("usa todos os recursos operacionais, sem reserva fixa", () => {

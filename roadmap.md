@@ -39,3 +39,5 @@
 - [x] Derivar a entrada do percentual financiado e compor com ágio, FGTS e dinheiro necessário
 - [x] Incluir o terreno no preço de venda e no resultado dos cenários
 - [x] Separar a verba da obra do dinheiro do cliente (antes do contrato, assinatura e juros de obra)
+- [x] Considerar a origem do terreno (investidor, construtor ou compra) na entrada, nas despesas e no capital
+- [x] Datar o capital do investidor e dividir a venda em cascata com retorno preferencial acima da Selic
