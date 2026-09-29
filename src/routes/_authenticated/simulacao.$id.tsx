@@ -57,6 +57,23 @@ type R = {
   prazoExecucaoMeses?: number;
   liberacoesMensais?: { mes: number; percentual: number; liberacao: number; saldoLiberado: number; encargo: number }[];
   primeiroImovelSfh?: boolean;
+  custoComTerreno?: number;
+  valorOperacao?: number;
+  percentualFinanciamento?: number;
+  entradaExigida?: number;
+  agioNaEntrada?: number;
+  fgtsNaEntrada?: number;
+  dinheiroEntrada?: number;
+  complementoLote?: number;
+  orcamentoObraContrato?: number;
+  financiamentoExcedente?: number;
+  aporteProprioObra?: number;
+  despesasAssinatura?: number;
+  desembolsoAntesContrato?: number;
+  desembolsoAssinatura?: number;
+  desembolsoDuranteObra?: number;
+  desembolsoProprio?: number;
+  maiorEncargoMensal?: number;
 };
 type Row = [label: string, value: number | undefined];
 
@@ -129,21 +146,20 @@ function Result() {
   const areaMin = r.areaViavelMinima ?? r.areaViavel;
   const areaMax = r.areaViavelMaxima ?? r.areaViavel;
   const lucro = r.lucroDesejado ?? item.lucro_desejado ?? 0;
-  const saldoRecursos = r.saldoRecursos ?? (r.recursosUtilizaveis !== undefined && r.custoTotal !== undefined ? r.recursosUtilizaveis - r.custoTotal - lucro : undefined);
   const extras = (item.custos_extras as unknown as { descricao: string; valor: number }[]) ?? [];
   const investidor = (r.participacaoInvestidor ?? 0) > 0;
 
   const metrics = [
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
-    { label: "Custo total", value: hasValue(r.custoTotal) ? BRL.format(r.custoTotal) : undefined, detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined },
     vender
       ? { label: "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
-      : { label: "Recursos utilizáveis", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
+      : { label: "Verba da obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
+    vender && hasValue(r.custoComTerreno)
+      ? { label: "Custo com terreno", value: BRL.format(r.custoComTerreno), detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined }
+      : { label: "Custo total", value: hasValue(r.custoTotal) ? BRL.format(r.custoTotal) : undefined, detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined },
     vender
       ? { label: "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, tone: "text-primary" }
-      : hasValue(saldoRecursos)
-        ? { label: saldoRecursos >= 0 ? "Folga de recursos" : "Aporte necessário", value: BRL.format(Math.abs(saldoRecursos)), tone: saldoRecursos >= 0 ? "text-primary" : "text-destructive" }
-        : { label: "", value: undefined },
+      : { label: "Dinheiro do cliente", value: hasValue(r.desembolsoProprio) ? BRL.format(r.desembolsoProprio) : undefined, tone: "text-secondary" },
   ].filter((metric) => metric.value !== undefined);
 
   return (
@@ -238,28 +254,41 @@ function Result() {
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-8">
           <Rows
-            title="Recursos"
+            title="Contrato"
             rows={[
-              ["Entrada em dinheiro", r.entradaDinheiro],
-              ["FGTS", r.fgtsUtilizado],
-              ["Ágio do lote (patrimônio)", r.agioLote],
-              ["Financiamento total", item.credito_aprovado],
+              ["Valor da operação", r.valorOperacao],
+              [hasValue(r.percentualFinanciamento) ? `Financiamento (${NUMBER.format(r.percentualFinanciamento)}%)` : "Financiamento", item.credito_aprovado],
+              ["Entrada exigida", r.entradaExigida],
+              ["Entrada · ágio do lote", r.agioNaEntrada],
+              ["Entrada · FGTS", r.fgtsNaEntrada],
+              ["Entrada · dinheiro", r.dinheiroEntrada],
               ["Quitação do lote", r.quitacaoLote],
-              ["Saldo do lote não coberto", r.saldoLoteNaoCoberto],
-              ["Financiamento da construção", r.financiamentoConstrucao],
-              ["Aporte adicional estimado", r.aporteAdicional],
+              ["Financiamento para a obra", r.financiamentoConstrucao],
+              ["Recursos próprios extras", r.aporteProprioObra],
             ]}
-            total={["Recursos utilizáveis", r.recursosUtilizaveis]}
+            total={["Verba da obra", r.recursosUtilizaveis]}
           />
+          {hasValue(r.financiamentoExcedente) && <p className="-mt-6 text-xs text-secondary">O ágio supera a entrada: {BRL.format(r.financiamentoExcedente)} do valor informado não seriam liberados para a obra.</p>}
+          <Rows
+            title="Dinheiro do cliente"
+            rows={[
+              ["Antes do contrato", r.desembolsoAntesContrato],
+              ["Na assinatura (entrada e taxas)", r.desembolsoAssinatura],
+              [hasValue(r.prazoExecucaoMeses) ? `Durante a obra (${r.prazoExecucaoMeses} meses de juros)` : "Durante a obra", r.desembolsoDuranteObra],
+            ]}
+            total={["Total do bolso do cliente", r.desembolsoProprio]}
+          />
+          {hasValue(r.maiorEncargoMensal) && <p className="-mt-6 text-xs text-muted-foreground">Maior parcela de juros de obra: {BRL.format(r.maiorEncargoMensal)}/mês. O FGTS não paga taxas nem juros.</p>}
           <Rows
             title="Custos"
             rows={[
+              ...(vender && hasValue(r.custoComTerreno) ? [["Terreno", item.terreno_valor] as Row] : []),
               [hasValue(r.areaPlanejada) ? `Construção (${m2(r.areaPlanejada)})` : "Construção", r.custoConstrucao],
               ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
               ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
               [hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra],
             ]}
-            total={["Custo total", r.custoTotal]}
+            total={vender && hasValue(r.custoComTerreno) ? ["Custo com terreno", r.custoComTerreno] : ["Custo total", r.custoTotal]}
           />
           {r.primeiroImovelSfh && <p className="text-xs text-muted-foreground">Registros com desconto de 50% do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH).</p>}
         </div>

@@ -4,7 +4,7 @@ import { registroEstimate } from "./emolumentos";
 
 const input: SimulationInput = {
   credito: 400000, terreno: 200000, saldoDevedor: 100000,
-  entradaDinheiro: 50000, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
+  percentualFinanciamento: 80, aporteProprioObra: 0, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
   cub: 2500, maoDeObra: 1000, materiais: 1000, areaPlanejada: 120,
   extras: [], objetivo: "vender", lucro: 30000, corretagem: 5,
   prazo: 0, jurosAnuais: 10, stages: [], liberacoes: pciReleases(6),
@@ -13,21 +13,44 @@ const input: SimulationInput = {
 };
 
 describe("projeção financeira", () => {
-  it("separa ágio e quitação do lote das liberações de construção", () => {
+  it("deriva a entrada do percentual financiado e compõe com ágio antes do dinheiro", () => {
     const result = calculate(input);
-    expect(result.agioLote).toBe(100000);
-    expect(result.entradaTotalReconhecida).toBe(170000);
+    expect(result.valorOperacao).toBe(500000);
+    expect(result.entradaExigida).toBe(100000);
+    expect(result.agioNaEntrada).toBe(100000);
+    expect(result.fgtsNaEntrada).toBe(0);
+    expect(result.dinheiroEntrada).toBe(0);
     expect(result.quitacaoLote).toBe(100000);
+    expect(result.orcamentoObraContrato).toBe(300000);
     expect(result.financiamentoConstrucao).toBe(300000);
+    expect(result.recursosUtilizaveis).toBe(300000);
     expect(result.liberacoesMensais.reduce((sum, month) => sum + month.liberacao, 0)).toBeCloseTo(300000);
-    expect(result.entradaLivreInicioObra).toBe(40000);
   });
 
-  it("não transforma saldo não coberto em verba para obra", () => {
+  it("usa FGTS e dinheiro só para completar a entrada que o ágio não cobre", () => {
     const result = calculate({ ...input, saldoDevedor: 190000 });
+    expect(result.agioNaEntrada).toBe(10000);
+    expect(result.fgtsNaEntrada).toBe(20000);
+    expect(result.dinheiroEntrada).toBe(70000);
     expect(result.quitacaoLote).toBe(160000);
     expect(result.saldoLoteNaoCoberto).toBe(30000);
-    expect(result.recursosUtilizaveis).toBe(280000);
+    expect(result.recursosUtilizaveis).toBe(300000);
+    expect(result.desembolsoAssinatura).toBe(70000);
+  });
+
+  it("não libera para a obra mais que o orçamento quando o ágio supera a entrada", () => {
+    const result = calculate({ ...input, saldoDevedor: 0 });
+    expect(result.dinheiroEntrada).toBe(0);
+    expect(result.financiamentoConstrucao).toBe(300000);
+    expect(result.financiamentoExcedente).toBe(100000);
+  });
+
+  it("inclui o terreno no preço de venda e separa o desembolso do cliente", () => {
+    const result = calculate(input);
+    expect(result.valorVenda * 0.95 - result.custoTotal - input.lucro).toBeCloseTo(input.terreno);
+    expect(result.cenarios[1]?.saldo).toBeCloseTo(input.lucro);
+    expect(result.desembolsoAntesContrato).toBe(10000);
+    expect(result.desembolsoDuranteObra).toBeCloseTo(result.jurosObra);
   });
 
   it("converte taxa anual por equivalência composta e oferece áreas mínima e máxima", () => {
@@ -49,9 +72,9 @@ describe("projeção financeira", () => {
 
   it("usa todos os recursos operacionais, sem reserva fixa", () => {
     const result = calculate({ ...input, despesas: [], lucro: 0 });
-    expect(result.disponivel).toBeCloseTo(result.recursosUtilizaveis - result.jurosObra);
+    expect(result.disponivel).toBeCloseTo(result.recursosUtilizaveis);
     expect(result.areaViavelMaxima).toBeCloseTo(result.disponivel / 2000);
-    expect(result.saldoRecursos).toBeCloseTo(result.recursosUtilizaveis - result.custoTotal);
+    expect(result.saldoRecursos).toBeCloseTo(result.recursosUtilizaveis - result.custoObra);
   });
 
   it("aplica o desconto do SFH e a tabela oficial do CE nos registros", () => {

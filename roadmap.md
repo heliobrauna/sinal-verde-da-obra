@@ -36,3 +36,6 @@
 - [x] Calcular registros pela tabela oficial da UF (CE) e aplicar desconto de 50% do SFH (Art. 290)
 - [x] Simplificar o relatório final e ocultar valores zerados
 - [ ] Cadastrar tabelas oficiais de emolumentos das demais UFs
+- [x] Derivar a entrada do percentual financiado e compor com ágio, FGTS e dinheiro necessário
+- [x] Incluir o terreno no preço de venda e no resultado dos cenários
+- [x] Separar a verba da obra do dinheiro do cliente (antes do contrato, assinatura e juros de obra)
