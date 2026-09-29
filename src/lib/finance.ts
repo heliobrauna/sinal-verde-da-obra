@@ -122,7 +122,7 @@ export function estimatedExpenses(
     { id: "matricula-inicial", categoria: "Despesas iniciais", nome: "Certidão de matrícula", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
     { id: "art", categoria: "Despesas iniciais", nome: "ART/RRT", valor: 285.59, fonte: "Confea / CREA ou CAU da UF", fonteUrl: "https://www.confea.org.br/profissional/taxas", observacao: "Referência; a tabela anual varia por conselho e UF." },
     { id: "plotagens", categoria: "Despesas iniciais", nome: "Plotagens", valor: 300, ...common },
-    { id: "alvara", categoria: "Despesas iniciais", nome: "Alvará de construção", valor: 1000, fonte: "Prefeitura do município", observacao: "Taxa municipal; estimativa editável." },
+    { id: "alvara", categoria: "Despesas iniciais", nome: "Alvará de construção", valor: area * 2 + 52, fonte: "Prefeitura do município", observacao: "Base de R$ 2,00 por m² + R$ 52,00; confirme a taxa municipal." },
     { id: "numeracao", categoria: "Despesas iniciais", nome: "Numeração do imóvel", valor: 100, fonte: "Prefeitura do município", observacao: "Taxa municipal; estimativa editável." },
     { id: "matricula-renovacao", categoria: "Assinatura do contrato", nome: "Renovação da certidão", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
     { id: "taxa-caixa", categoria: "Assinatura do contrato", nome: "Taxa de contratação Caixa", valor: 750, fonte: "Caixa Habitação", fonteUrl: "https://www.caixa.gov.br/voce/habitacao/construcao/Paginas/default.aspx", observacao: "Valor solicitado como referência; confirme na tabela vigente." },
@@ -216,7 +216,9 @@ export function calculate(input: SimulationInput) {
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
   const jurosPosObra = saldoLiberado * taxaMensal * mesesAposObra;
   const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / 360 * mesesAposObra);
-  const capitalAportadoInvestidor = desembolsoProprio;
+  // O investidor banca as despesas pré-obra (antes do contrato e assinatura) e 10% da obra para o início,
+  // antes da primeira liberação. A entrada não entra: é comprovação de recursos, não aporte.
+  const capitalAportadoInvestidor = despesasPreContrato + despesasAssinatura + (custoConstrucao + extrasTotal) * 0.1;
   const participacaoInvestidor = Math.min(100, Math.max(0, input.participacaoInvestidor));
   const cenarios = [-0.15, 0, 0.15].map((ajuste, index) => {
     const venda = valorVenda * (1 + ajuste);

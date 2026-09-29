@@ -184,8 +184,9 @@ function Wizard() {
     [credito, terreno, situacao, saldo, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
   const estimates = useMemo(
-    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima, estado, primeiroImovelSfh),
-    [terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima, estado, primeiroImovelSfh],
+    // Alvará e INSS acompanham a área planejada; antes de defini-la, usam a área viável.
+    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada > 0 ? areaPlanejada : baseResult.areaViavelMaxima, estado, primeiroImovelSfh),
+    [terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada, baseResult.areaViavelMaxima, estado, primeiroImovelSfh],
   );
   const despesas = useMemo(
     () => estimates.map((item) => ({ ...item, valor: expenseOverrides[item.id] ?? item.valor })),
@@ -644,7 +645,7 @@ function Wizard() {
                     </div>
                     {field("Meses após conclusão até a venda (0 = venda na planta)", prazo, setPrazo, false)}
                     <div><Label>Participação do investidor no resultado (%)</Label><NumericInput className="mt-2 h-11" value={participacaoInvestidor} decimals={2} onValueChange={setParticipacaoInvestidor} /></div>
-                     <div className="flex items-center rounded-md border px-4 py-3"><div><p className="text-sm text-muted-foreground">Capital aportado pelo investidor</p><p className="font-semibold">{BRL.format(result.capitalAportadoInvestidor)}</p><p className="text-xs text-muted-foreground">Dinheiro do cliente: despesas antes do contrato, entrada, assinatura e juros de obra.</p></div></div>
+                     <div className="flex items-center rounded-md border px-4 py-3"><div><p className="text-sm text-muted-foreground">Capital aportado pelo investidor</p><p className="font-semibold">{BRL.format(result.capitalAportadoInvestidor)}</p><p className="text-xs text-muted-foreground">Despesas pré-obra (antes do contrato e assinatura) + 10% da obra para o início. Não inclui a entrada.</p></div></div>
                     <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>

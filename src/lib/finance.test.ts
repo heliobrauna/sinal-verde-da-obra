@@ -67,7 +67,8 @@ describe("projeção financeira", () => {
     expect(extra.valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
     expect(calculate({ ...input, lucro: 35000 }).valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
     expect(calculate({ ...input, areaPlanejada: 125 }).valorVenda - initial.valorVenda).toBeCloseTo(10000 / 0.95);
-    expect(initial.capitalAportadoInvestidor).toBeCloseTo(10000 + initial.jurosObra);
+    expect(initial.capitalAportadoInvestidor).toBeCloseTo(10000 + 120 * 2000 * 0.1);
+    expect(estimatedExpenses(0, 0, 0, 0, 0, 0, 100).find((item) => item.id === "alvara")?.valor).toBe(252);
   });
 
   it("usa todos os recursos operacionais, sem reserva fixa", () => {
