@@ -4,7 +4,7 @@ import { registroEstimate } from "./emolumentos";
 
 const input: SimulationInput = {
   credito: 400000, terreno: 200000, saldoDevedor: 100000,
-  percentualFinanciamento: 80, aporteProprioObra: 0, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
+  valorImovel: 500000, aporteProprioObra: 0, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
   cub: 2500, maoDeObra: 1000, materiais: 1000, areaPlanejada: 120,
   extras: [], objetivo: "vender", lucro: 30000, corretagem: 5,
   prazo: 0, jurosAnuais: 10, stages: [], liberacoes: pciReleases(6),
@@ -13,7 +13,7 @@ const input: SimulationInput = {
 };
 
 describe("projeção financeira", () => {
-  it("deriva a entrada do percentual financiado e compõe com ágio antes do dinheiro", () => {
+  it("deriva a entrada do valor do imóvel e compõe com ágio antes do dinheiro", () => {
     const result = calculate(input);
     expect(result.valorOperacao).toBe(500000);
     expect(result.entradaExigida).toBe(100000);

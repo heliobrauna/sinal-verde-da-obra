@@ -20,7 +20,7 @@ export type SimulationInput = {
   credito: number;
   terreno: number;
   saldoDevedor: number;
-  percentualFinanciamento: number;
+  valorImovel: number;
   aporteProprioObra: number;
   fgtsUtilizado: number;
   percentualFinanciavelLote: number;
@@ -149,10 +149,9 @@ export function calculate(input: SimulationInput) {
   const despesasAssinatura = soma(input.despesas.filter((item) => item.categoria === "Assinatura do contrato"));
   const despesasObra = soma(input.despesas.filter((item) => item.categoria === "Durante a obra"));
 
-  // Contrato: valor da operação = financiamento + entrada; a entrada é o que o banco não financia.
-  const percentualFinanciamento = Math.min(100, Math.max(1, input.percentualFinanciamento));
+  // Contrato, como no simulador da Caixa: valor do imóvel = entrada + financiamento.
   const credito = Math.max(0, input.credito);
-  const valorOperacao = credito / (percentualFinanciamento / 100);
+  const valorOperacao = Math.max(input.valorImovel, credito);
   const entradaExigida = Math.max(valorOperacao - credito, 0);
   const saldoDevedor = Math.max(0, input.saldoDevedor);
   const agioLote = Math.max(input.terreno - saldoDevedor, 0);
@@ -241,7 +240,7 @@ export function calculate(input: SimulationInput) {
     lucroDesejado: input.lucro, mesesAposObra, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
     capitalAportadoInvestidor, participacaoInvestidor, cenarios,
-    terreno: input.terreno, saldoDevedor, credito, percentualFinanciamento, valorOperacao, entradaExigida,
+    terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
     agioLote, agioNaEntrada, fgtsUtilizado: input.fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
     percentualFinanciavelLote, limiteFinanciavelLote, avaliacaoMinimaLote,
     quitacaoLote, saldoLoteNaoCoberto, complementoLote, orcamentoObraContrato,

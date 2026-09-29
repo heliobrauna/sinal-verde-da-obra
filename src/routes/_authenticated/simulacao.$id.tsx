@@ -59,7 +59,6 @@ type R = {
   primeiroImovelSfh?: boolean;
   custoComTerreno?: number;
   valorOperacao?: number;
-  percentualFinanciamento?: number;
   entradaExigida?: number;
   agioNaEntrada?: number;
   fgtsNaEntrada?: number;
@@ -256,9 +255,9 @@ function Result() {
           <Rows
             title="Contrato"
             rows={[
-              ["Valor da operação", r.valorOperacao],
-              [hasValue(r.percentualFinanciamento) ? `Financiamento (${NUMBER.format(r.percentualFinanciamento)}%)` : "Financiamento", item.credito_aprovado],
-              ["Entrada exigida", r.entradaExigida],
+              ["Valor do imóvel", r.valorOperacao],
+              ["Valor do financiamento", item.credito_aprovado],
+              ["Valor de entrada (comprovação)", r.entradaExigida],
               ["Entrada · ágio do lote", r.agioNaEntrada],
               ["Entrada · FGTS", r.fgtsNaEntrada],
               ["Entrada · dinheiro", r.dinheiroEntrada],
@@ -273,7 +272,9 @@ function Result() {
             title="Dinheiro do cliente"
             rows={[
               ["Antes do contrato", r.desembolsoAntesContrato],
-              ["Na assinatura (entrada e taxas)", r.desembolsoAssinatura],
+              ...(r.despesasAssinatura !== undefined
+                ? [["Taxas e cartório na assinatura", r.despesasAssinatura + (r.complementoLote ?? 0)] as Row, ["Entrada em dinheiro (aplicada na obra)", r.dinheiroEntrada] as Row]
+                : [["Na assinatura", r.desembolsoAssinatura] as Row]),
               [hasValue(r.prazoExecucaoMeses) ? `Durante a obra (${r.prazoExecucaoMeses} meses de juros)` : "Durante a obra", r.desembolsoDuranteObra],
             ]}
             total={["Total do bolso do cliente", r.desembolsoProprio]}

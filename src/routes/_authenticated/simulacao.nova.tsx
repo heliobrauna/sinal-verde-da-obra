@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +22,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   calculate,
   BRL,
-  NUMBER,
   annualToMonthlyRate,
   estimatedExpenses,
   monthlyToAnnualRate,
@@ -91,6 +91,24 @@ const ufs = [
   "TO",
 ];
 const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a obra"] as const;
+const HELP = {
+  imovel: "Valor total informado no simulador da Caixa: terreno + orçamento da obra. É a base que o banco avalia para definir o financiamento.",
+  entrada: "Diferença entre o valor do imóvel e o financiamento. Não é um pagamento ao banco: é o valor que você precisa comprovar que tem (ágio do lote, FGTS e dinheiro em conta) para o banco considerar o contrato viável. Guarde esses recursos: a obra exige aportes relevantes antes da primeira liberação.",
+  financiamento: "Valor que o banco empresta. Primeiro quita o saldo devedor do lote, se houver; o restante é liberado em parcelas conforme a medição da obra, nunca de uma vez.",
+};
+
+function InfoTip({ label, text }: { label: string; text: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label={`O que é ${label}`} className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary">
+          <Info className="size-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 text-sm leading-relaxed">{text}</PopoverContent>
+    </Popover>
+  );
+}
 
 type CubReference = {
   valor: number;
@@ -133,7 +151,7 @@ function Wizard() {
   const [cubRef, setCubRef] = useState<CubReference | null>(null);
   const [savedCub, setSavedCub] = useState(0);
   const [cubLoading, setCubLoading] = useState(false);
-  const [percentualFinanciamento, setPercentualFinanciamento] = useState(80);
+  const [valorImovel, setValorImovel] = useState(0);
   const [aporteProprioObra, setAporteProprioObra] = useState(0);
   const [fgtsUtilizado, setFgtsUtilizado] = useState(0);
   const [percentualFinanciavelLote, setPercentualFinanciavelLote] = useState(80);
@@ -162,8 +180,8 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, percentualFinanciamento, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
-    [credito, terreno, situacao, saldo, percentualFinanciamento, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
   const estimates = useMemo(
     () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima, estado, primeiroImovelSfh),
@@ -179,7 +197,7 @@ function Wizard() {
         credito,
         terreno,
         saldoDevedor: situacao === "financiado" ? saldo : 0,
-        percentualFinanciamento,
+        valorImovel,
         aporteProprioObra,
         fgtsUtilizado,
         percentualFinanciavelLote,
@@ -198,7 +216,7 @@ function Wizard() {
         despesas,
         participacaoInvestidor,
       }),
-    [credito, terreno, situacao, saldo, percentualFinanciamento, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, valorImovel, aporteProprioObra, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -212,7 +230,7 @@ function Wizard() {
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
       setSavedCub(data.cub_valor_m2);
       if (saved.cubReferencia) setCubRef(saved.cubReferencia as CubReference);
-       setPercentualFinanciamento(saved.percentualFinanciamento ?? 80); setAporteProprioObra(saved.aporteProprioObra ?? 0); setFgtsUtilizado(saved.fgtsUtilizado ?? 0);
+       setValorImovel(saved.valorOperacao ?? data.credito_aprovado / ((saved as { percentualFinanciamento?: number }).percentualFinanciamento ?? 80) * 100); setAporteProprioObra(saved.aporteProprioObra ?? 0); setFgtsUtilizado(saved.fgtsUtilizado ?? 0);
        setPercentualFinanciavelLote(saved.percentualFinanciavelLote ?? 80);
        setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
@@ -261,8 +279,12 @@ function Wizard() {
     }
   }, [baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   function next() {
-    if (step === 1 && (!credito || !renda)) {
-      setErro("Informe a renda e o valor financiado para continuar.");
+    if (step === 1 && (!credito || !renda || !valorImovel)) {
+      setErro("Informe a renda, o valor do imóvel e o valor do financiamento para continuar.");
+      return;
+    }
+    if (step === 1 && valorImovel < credito) {
+      setErro("O valor do imóvel não pode ser menor que o valor do financiamento.");
       return;
     }
     if (step === 2 && custoReal <= 0) {
@@ -285,8 +307,8 @@ function Wizard() {
     if (corretagem < 0 || corretagem >= 100 || participacaoInvestidor < 0 || participacaoInvestidor > 100 || prazo < 0) {
       setErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
     }
-    if (percentualFinanciamento <= 0 || percentualFinanciamento > 100 || percentualFinanciavelLote <= 0 || percentualFinanciavelLote > 100 || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
-      setErro("Revise os percentuais de financiamento e os dois cronogramas: cada cronograma deve somar 100%."); return;
+    if (valorImovel < credito || percentualFinanciavelLote <= 0 || percentualFinanciavelLote > 100 || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
+      setErro("Revise o valor do imóvel, o percentual financiável do lote e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
     const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh };
     if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
@@ -320,9 +342,9 @@ function Wizard() {
     }
     nav({ to: "/simulacao/$id", params: { id: data.id } });
   }
-  const field = (label: string, value: number, set: (n: number) => void, monetary = true) => (
+  const field = (label: string, value: number, set: (n: number) => void, monetary = true, help?: string) => (
     <div>
-      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5"><Label>{label}</Label>{help && <InfoTip label={label} text={help} />}</div>
       <NumericInput
         className="mt-2 h-11"
         min="0"
@@ -385,8 +407,15 @@ function Wizard() {
                 {situacao === "financiado" && field("Saldo devedor", saldo, setSaldo)}
                  {situacao === "financiado" && field("Percentual máximo financiável do lote (%)", percentualFinanciavelLote, setPercentualFinanciavelLote, false)}
                 {field("Renda declarada", renda, setRenda)}
-                {field("Valor financiado (simulador Caixa)", credito, setCredito)}
-                <div>{field("Percentual financiado pelo banco (%)", percentualFinanciamento, setPercentualFinanciamento, false)}<p className="mt-1 text-xs text-muted-foreground">No financiamento máximo da Caixa, 80%. A entrada é o restante.</p></div>
+                <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-3">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-3">Simulador da Caixa</p>
+                  {field("Valor do imóvel", valorImovel, setValorImovel, true, HELP.imovel)}
+                  <div>
+                    <div className="flex items-center gap-1.5"><Label>Valor de entrada</Label><InfoTip label="Valor de entrada" text={HELP.entrada} /></div>
+                    <div className="mt-2 flex h-11 items-center rounded-md border bg-muted/40 px-3 font-semibold">{BRL.format(baseResult.entradaExigida)}</div>
+                  </div>
+                  {field("Valor do financiamento", credito, setCredito, true, HELP.financiamento)}
+                </div>
                 {field("FGTS disponível para a entrada", fgtsUtilizado, setFgtsUtilizado)}
                 <div>{field("Recursos próprios extras para a obra (opcional)", aporteProprioObra, setAporteProprioObra)}<p className="mt-1 text-xs text-muted-foreground">Dinheiro além da entrada, se quiser construir acima do orçamento do contrato.</p></div>
                 <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm md:col-span-2" htmlFor="primeiro-imovel-sfh">
@@ -397,17 +426,13 @@ function Wizard() {
                   </span>
                 </label>
                 <div className="md:col-span-2 border-y py-4 text-sm">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <p><span className="text-muted-foreground">Valor da operação</span><strong className="mt-1 block">{BRL.format(baseResult.valorOperacao)}</strong></p>
-                    <p><span className="text-muted-foreground">Entrada exigida ({NUMBER.format(100 - baseResult.percentualFinanciamento)}%)</span><strong className="mt-1 block">{BRL.format(baseResult.entradaExigida)}</strong></p>
-                    <p><span className="text-muted-foreground">Orçamento da obra no contrato</span><strong className="mt-1 block">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
-                  </div>
-                  <p className="mt-4 text-xs font-semibold uppercase text-muted-foreground">Composição da entrada</p>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Como você comprova a entrada</p>
                   <div className="mt-2 grid gap-3 sm:grid-cols-3">
                     <p><span className="text-muted-foreground">Ágio do lote</span><strong className="mt-1 block">{BRL.format(baseResult.agioNaEntrada)}</strong></p>
                     <p><span className="text-muted-foreground">FGTS</span><strong className="mt-1 block">{BRL.format(baseResult.fgtsNaEntrada)}</strong></p>
                     <p><span className="text-muted-foreground">Dinheiro necessário</span><strong className={`mt-1 block ${baseResult.dinheiroEntrada > 0 ? "text-secondary" : "text-primary"}`}>{BRL.format(baseResult.dinheiroEntrada)}</strong></p>
                   </div>
+                  <p className="mt-3 text-xs text-muted-foreground">Orçamento da obra no contrato (imóvel − terreno): <strong className="text-foreground">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
                   {baseResult.financiamentoExcedente > 0 && <p className="mt-3 text-xs text-secondary">O ágio cobre mais que a entrada: o banco tende a liberar no máximo {BRL.format(baseResult.financiamentoConstrucao)} para a obra ({BRL.format(baseResult.financiamentoExcedente)} a menos que o valor informado).</p>}
                   {situacao === "financiado" && <p className="mt-3 text-xs text-muted-foreground">Quitação do lote pelo banco: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}.</p>}
                 </div>
