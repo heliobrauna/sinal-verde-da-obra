@@ -181,7 +181,8 @@ export function calculate(input: SimulationInput) {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
     const saldo = venda - corretagem - custoTotal - jurosPosObra;
-    const lucroInvestidor = saldo * participacaoInvestidor / 100;
+    // Sem participação, evita "-R$ 0,00" quando o saldo é negativo.
+    const lucroInvestidor = participacaoInvestidor > 0 ? saldo * participacaoInvestidor / 100 : 0;
     return {
       nome: ["Pessimista", "Realista", "Otimista"][index], ajuste, venda, corretagem, saldo,
       lucroInvestidor, lucroConstrutor: saldo - lucroInvestidor,

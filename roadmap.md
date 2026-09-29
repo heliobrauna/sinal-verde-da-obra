@@ -30,4 +30,4 @@
 - [x] Restaurar faixa de área viável de BDI 18% a 0% e detalhar a composição da operação
 - [x] Sugerir prazo e liberações mensais editáveis da PCI, exclusivamente sobre financiamento da construção
 - [x] Calcular juros estimados de obra e capital aportado pelo investidor a partir de despesas pré-contrato
-- [ ] Validar os cálculos, a edição e a apresentação em desktop e celular
+- [x] Validar os cálculos, a edição e a apresentação em desktop e celular

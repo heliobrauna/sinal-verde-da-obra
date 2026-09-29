@@ -569,6 +569,7 @@ function Wizard() {
                         type="button"
                         key={x}
                         variant={objetivo === x ? "default" : "outline"}
+                        className="h-auto min-h-10 whitespace-normal py-2"
                         onClick={() => setObjetivo(x)}
                       >
                         {x === "morar" ? "Construir para morar" : "Construir para vender"}
