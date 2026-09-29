@@ -16,3 +16,6 @@
 - Post-construction installments are cash outflows, not wholly interest expense; show estimated financing charges separately and label investor return assumptions instead of asserting bank-exact totals.
 - Persist entry, FGTS intended for use, lot equity, annual compound-equivalent interest and PCI monthly releases in resultado JSON; keep the legacy monthly rate column monthly so old simulations can be edited without migration.
 - Apply PCI releases only to financing remaining after lot payoff; preset 18 months over 320 m² and treat the table as editable planning assumptions rather than lender guarantees.
+- Do not deduct a fixed contingency reserve: viable area uses all operational resources; old simulations may still carry `contingencia` inside resultado and are shown without it.
+- Registry fees (compra e venda on lot value, alienação fiduciária on financed value) come from per-UF bracket tables in `src/lib/emolumentos.ts` (CE = TJCE 2026 Tabela VII); UFs without a table fall back to a labeled 0,5% estimate. The SFH first-home flag halves both (Art. 290, Lei 6.015/73) and is persisted in resultado as `primeiroImovelSfh`.
+- The result page hides every zero-valued item and leads with area, total cost, sale/resources and profit/balance.

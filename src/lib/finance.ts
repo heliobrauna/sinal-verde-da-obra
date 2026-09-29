@@ -1,3 +1,5 @@
+import { registroEstimate } from "./emolumentos";
+
 export const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 export const NUMBER = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
@@ -98,6 +100,8 @@ export function estimatedExpenses(
   honorarios: number,
   cub: number,
   area: number,
+  estado = "",
+  primeiroImovelSfh = false,
 ): ClientExpense[] {
   const common = { fonte: "Estimativa editável", observacao: "Confirme o valor real antes da contratação." };
   const areaAte100 = Math.min(area, 100);
@@ -106,6 +110,11 @@ export function estimatedExpenses(
   const areaAcima300 = Math.max(area - 300, 0);
   const remuneracaoEstimada = cub * (areaAte100 * 0.04 + areaAte200 * 0.08 + areaAte300 * 0.14 + areaAcima300 * 0.2);
   const inssEstimado = remuneracaoEstimada * 0.368;
+  const registroCompra = registroEstimate(estado, terreno, primeiroImovelSfh);
+  const registroAlienacao = registroEstimate(estado, credito, primeiroImovelSfh);
+  const descontoSfh = primeiroImovelSfh ? " Inclui 50% de desconto do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH)." : "";
+  const registroObservacao = (registro: typeof registroCompra, base: string) =>
+    (registro.oficial ? `Tabela oficial da UF por faixa de ${base}; não inclui prenotação e taxas adicionais.` : `Estimativa sobre ${base}; consulte os emolumentos da UF.`) + descontoSfh;
   return [
     { id: "honorarios-entrada", categoria: "Despesas iniciais", nome: "Honorários — entrada (30%)", valor: honorarios * 0.3, fonte: "Condição informada pelo responsável técnico", observacao: "30% dos honorários desejados." },
     { id: "projetos", categoria: "Despesas iniciais", nome: "Projetos", valor: projetos, ...common },
@@ -118,8 +127,8 @@ export function estimatedExpenses(
     { id: "taxa-caixa", categoria: "Assinatura do contrato", nome: "Taxa de contratação Caixa", valor: 750, fonte: "Caixa Habitação", fonteUrl: "https://www.caixa.gov.br/voce/habitacao/construcao/Paginas/default.aspx", observacao: "Valor solicitado como referência; confirme na tabela vigente." },
     { id: "relacionamento", categoria: "Assinatura do contrato", nome: "Produtos de relacionamento", valor: credito * 0.01, fonte: "Sugestão de 1% do valor financiado", observacao: "Não é taxa obrigatória; depende da negociação." },
     { id: "itbi", categoria: "Assinatura do contrato", nome: "ITBI do lote", valor: terreno * 0.02, fonte: "Prefeitura do município", observacao: "Estimativa de 2% apenas sobre o lote; a alíquota é municipal." },
-    { id: "registro-compra", categoria: "Assinatura do contrato", nome: "Registro de compra e venda", valor: terreno * 0.005, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Estimativa de 0,5%; consulte os emolumentos da UF." },
-    { id: "alienacao", categoria: "Assinatura do contrato", nome: "Registro de alienação fiduciária", valor: credito * 0.005, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Estimativa de 0,5%; consulte os emolumentos da UF." },
+    { id: "registro-compra", categoria: "Assinatura do contrato", nome: "Registro de compra e venda", valor: registroCompra.valor, fonte: registroCompra.fonte, fonteUrl: registroCompra.fonteUrl, observacao: registroObservacao(registroCompra, "valor do terreno") },
+    { id: "alienacao", categoria: "Assinatura do contrato", nome: "Registro de alienação fiduciária", valor: registroAlienacao.valor, fonte: registroAlienacao.fonte, fonteUrl: registroAlienacao.fonteUrl, observacao: registroObservacao(registroAlienacao, "valor financiado") },
     { id: "matricula-contrato", categoria: "Assinatura do contrato", nome: "Certidão atualizada", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
     { id: "honorarios-saldo", categoria: "Durante a obra", nome: "Honorários — restante (70%)", valor: honorarios * 0.7, fonte: "Condição informada pelo responsável técnico", observacao: "70% dos honorários desejados." },
     { id: "administracao", categoria: "Durante a obra", nome: "Administração do processo", valor: administracao, ...common },
@@ -157,17 +166,18 @@ export function calculate(input: SimulationInput) {
     saldoLiberado += liberacao;
     return { ...item, liberacao, saldoLiberado, encargo };
   });
-  const contingencia = recursosUtilizaveis * 0.2;
   const custoM2 = input.maoDeObra + input.materiais;
-  const disponivel = Math.max(0, recursosUtilizaveis - extrasTotal - despesasTotal - contingencia - jurosObra - input.lucro);
+  const disponivel = Math.max(0, recursosUtilizaveis - extrasTotal - despesasTotal - jurosObra - input.lucro);
   const areaViavelMaxima = custoM2 > 0 ? disponivel / custoM2 : 0;
   const areaViavelMinima = custoM2 > 0 ? disponivel / (custoM2 * 1.18) : 0;
   const areaViavel = areaViavelMinima;
   const areaPlanejada = input.areaPlanejada > 0 ? input.areaPlanejada : areaViavelMinima;
   const custoConstrucao = areaPlanejada * custoM2;
   const custoObra = custoConstrucao + extrasTotal + despesasTotal;
-  const custoTotal = custoObra + jurosObra + contingencia;
-  const aporteParaAreaPlanejada = Math.max(custoTotal + input.lucro - recursosUtilizaveis, 0);
+  const custoTotal = custoObra + jurosObra;
+  // Positivo: sobra de recursos; negativo: aporte necessário para a área planejada.
+  const saldoRecursos = recursosUtilizaveis - custoTotal - input.lucro;
+  const aporteParaAreaPlanejada = Math.max(-saldoRecursos, 0);
   const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
   const valorVenda = input.objetivo === "vender" ? (custoTotal + input.lucro) / (1 - taxaCorretagem) : recursosUtilizaveis;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
@@ -194,7 +204,7 @@ export function calculate(input: SimulationInput) {
     maoDeObra: input.maoDeObra, materiais: input.materiais,
     cubReferenciaValor: input.cub, cubMaisDez: input.cub * 1.1,
     extrasTotal, despesasTotal, despesasPreContrato, despesas: input.despesas,
-    contingencia, disponivel, custoObra, custoConstrucao, custoTotal, jurosObra,
+    saldoRecursos, disponivel, custoObra, custoConstrucao, custoTotal, jurosObra,
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
     lucroDesejado: input.lucro, mesesAposObra, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,

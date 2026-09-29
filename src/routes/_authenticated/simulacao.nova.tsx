@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -153,6 +154,7 @@ function Wizard() {
   const [projetos, setProjetos] = useState(0);
   const [administracao, setAdministracao] = useState(0);
   const [honorarios, setHonorarios] = useState(0);
+  const [primeiroImovelSfh, setPrimeiroImovelSfh] = useState(false);
   const [expenseOverrides, setExpenseOverrides] = useState<Record<string, number>>({});
   const [erro, setErro] = useState("");
   const cub = cubRef?.valor ?? savedCub;
@@ -162,8 +164,8 @@ function Wizard() {
     [credito, terreno, situacao, saldo, entradaDinheiro, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, cronograma, liberacoes, participacaoInvestidor],
   );
   const estimates = useMemo(
-    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima),
-    [terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima],
+    () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima, estado, primeiroImovelSfh),
+    [terreno, credito, projetos, administracao, honorarios, cub, baseResult.areaViavelMaxima, estado, primeiroImovelSfh],
   );
   const despesas = useMemo(
     () => estimates.map((item) => ({ ...item, valor: expenseOverrides[item.id] ?? item.valor })),
@@ -201,7 +203,7 @@ function Wizard() {
     supabase.from("simulacoes").select("*").eq("id", editar).single().then(({ data, error }) => {
       if (!active) return;
       if (error || !data) { setErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
-       const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number>; cubReferencia?: CubReference };
+       const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number>; cubReferencia?: CubReference; primeiroImovelSfh?: boolean };
       setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
       setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
@@ -222,6 +224,7 @@ function Wizard() {
       setObjetivo(data.objetivo as "morar" | "vender"); setLucro(data.lucro_desejado ?? 0);
       setCorretagem(saved.corretagemPercentual ?? 5); setPrazo(saved.mesesAposObra ?? data.prazo_venda_meses ?? 0);
        setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
+      setPrimeiroImovelSfh(saved.primeiroImovelSfh ?? false);
       setProjetos(saved.projetos ?? 0); setAdministracao(saved.administracao ?? 0); setHonorarios(saved.honorarios ?? 0);
       setExpenseOverrides(saved.expenseOverrides ?? Object.fromEntries((saved.despesas ?? []).map((x) => [x.id, x.valor])));
       setLoadingEdit(false);
@@ -282,7 +285,7 @@ function Wizard() {
     if (percentualFinanciavelLote <= 0 || percentualFinanciavelLote > 100 || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
       setErro("Revise o percentual financiável do lote e os dois cronogramas: cada um deve somar 100%."); return;
     }
-    const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides };
+    const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh };
     if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
@@ -330,7 +333,9 @@ function Wizard() {
   if (loadingEdit) return <AppShell><div className="mx-auto h-52 max-w-3xl animate-pulse rounded-lg bg-muted" /></AppShell>;
   return (
     <AppShell>
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto grid max-w-3xl gap-6 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_280px]">
+      <LivePanel result={result} objetivo={objetivo} />
+      <div className="min-w-0 lg:col-start-1 lg:row-start-1">
         <p className="text-sm font-semibold text-primary">{editar ? "EDITAR SIMULAÇÃO" : "NOVA SIMULAÇÃO"}</p>
         <div className="mt-3 flex items-end justify-between gap-4">
           <h1 className="text-3xl font-bold">
@@ -380,6 +385,13 @@ function Wizard() {
                  {situacao === "financiado" && field("Percentual máximo financiável do lote (%)", percentualFinanciavelLote, setPercentualFinanciavelLote, false)}
                 {field("Renda declarada", renda, setRenda)}
                 {field("Valor financiado (simulador Caixa)", credito, setCredito)}
+                <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm md:col-span-2" htmlFor="primeiro-imovel-sfh">
+                  <Checkbox id="primeiro-imovel-sfh" className="mt-0.5" checked={primeiroImovelSfh} onCheckedChange={(checked) => setPrimeiroImovelSfh(checked === true)} />
+                  <span>
+                    <strong className="block">Primeiro imóvel financiado (SFH)</strong>
+                    <span className="text-muted-foreground">Desconto de 50% em cartório (Art. 290 da Lei 6.015/73) nos registros de compra e venda e de alienação fiduciária.</span>
+                  </span>
+                </label>
                  <div className="md:col-span-2 grid gap-3 border-y py-4 text-sm sm:grid-cols-3">
                    <p><span className="text-muted-foreground">Ágio reconhecido</span><strong className="mt-1 block">{BRL.format(baseResult.agioLote)}</strong></p>
                    <p><span className="text-muted-foreground">Entrada total reconhecida</span><strong className="mt-1 block">{BRL.format(baseResult.entradaTotalReconhecida)}</strong></p>
@@ -598,7 +610,7 @@ function Wizard() {
                     <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
                       <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
                       <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">Construção, despesas (incluindo projetos, honorários e administração), reserva, juros de obra, lucro desejado e corretagem. Cada valor entra uma vez.</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Construção, despesas (incluindo projetos, honorários e administração), juros de obra, lucro desejado e corretagem. Cada valor entra uma vez.</p>
                        {result.aporteParaAreaPlanejada > 0 && <p className="mt-2 text-xs text-destructive">Aporte adicional para esta área: {BRL.format(result.aporteParaAreaPlanejada)}.</p>}
                     </div>
                   </>
@@ -657,7 +669,37 @@ function Wizard() {
           </CardContent>
         </Card>
       </div>
+      </div>
     </AppShell>
+  );
+}
+
+function LivePanel({ result, objetivo }: { result: ReturnType<typeof calculate>; objetivo: "morar" | "vender" }) {
+  const semCusto = result.custoM2 <= 0;
+  const area = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const folga = result.saldoRecursos >= 0;
+  const items = [
+    { label: "Área viável", value: semCusto ? "—" : `${area(result.areaViavelMinima)} a ${area(result.areaViavelMaxima)} m²`, tone: "text-primary" },
+    { label: "Custo total", value: semCusto ? "—" : BRL.format(result.custoTotal), tone: "" },
+    objetivo === "vender"
+      ? { label: "Venda estimada", value: semCusto ? "—" : BRL.format(result.valorVenda), tone: "" }
+      : { label: "Recursos utilizáveis", value: BRL.format(result.recursosUtilizaveis), tone: "" },
+    semCusto
+      ? { label: "Saldo de recursos", value: "—", tone: "" }
+      : { label: folga ? "Folga de recursos" : "Aporte necessário", value: BRL.format(Math.abs(result.saldoRecursos)), tone: folga ? "text-primary" : "text-destructive" },
+  ];
+  return (
+    <aside className="sticky top-16 z-10 -mx-5 border-b bg-background/95 px-5 py-3 backdrop-blur lg:top-24 lg:col-start-2 lg:row-start-1 lg:mx-0 lg:self-start lg:rounded-lg lg:border lg:bg-card lg:p-5" aria-live="polite">
+      <p className="hidden text-xs font-semibold uppercase text-muted-foreground lg:block">Resumo em tempo real</p>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 lg:mt-4 lg:grid-cols-1 lg:gap-y-4">
+        {items.map((item) => (
+          <div key={item.label} className="min-w-0">
+            <dt className="truncate text-[11px] text-muted-foreground lg:text-xs">{item.label}</dt>
+            <dd className={`truncate text-sm font-semibold lg:text-lg ${item.tone}`}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </aside>
   );
 }
 

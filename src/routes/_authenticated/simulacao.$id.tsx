@@ -17,27 +17,20 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { BRL, NUMBER, type ClientExpense } from "@/lib/finance";
 import type { Tables } from "@/integrations/supabase/types";
-import { ArrowLeft, CheckCircle2, TrendingDown, Minus, TrendingUp, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, TrendingDown, Minus, TrendingUp, Trash2, Pencil } from "lucide-react";
 type R = {
   areaViavel: number;
   areaViavelMinima?: number;
   areaViavelMaxima?: number;
   custoM2: number;
-  maoDeObra?: number;
-  materiais?: number;
-  cubReferenciaValor?: number;
-  cubMaisDez?: number;
   custoConstrucao?: number;
   areaPlanejada?: number;
   aporteParaAreaPlanejada?: number;
+  saldoRecursos?: number;
   custoTotal?: number;
   jurosPosObra?: number;
-  parcelasEstimadas?: number;
-  amortizacaoEstimada?: number;
   mesesAposObra?: number;
-  capitalInvestidor?: number;
   participacaoInvestidor?: number;
-  contingencia: number;
   extrasTotal: number;
   despesasTotal?: number;
   despesas?: ClientExpense[];
@@ -48,20 +41,14 @@ type R = {
   corretagemPercentual?: number;
   corretagemValor?: number;
   lucroDesejado?: number;
-  administracao?: number;
-  honorarios?: number;
   entradaDinheiro?: number;
   fgtsUtilizado?: number;
   agioLote?: number;
-  entradaTotalReconhecida?: number;
-  percentualFinanciavelLote?: number;
-  avaliacaoMinimaLote?: number;
   quitacaoLote?: number;
   saldoLoteNaoCoberto?: number;
   financiamentoConstrucao?: number;
   recursosUtilizaveis?: number;
   despesasPreContrato?: number;
-  entradaLivreInicioObra?: number;
   aporteAdicional?: number;
   taxaJurosAnual?: number;
   taxaJurosMensalEquivalente?: number;
@@ -69,7 +56,14 @@ type R = {
   capitalAportadoInvestidor?: number;
   prazoExecucaoMeses?: number;
   liberacoesMensais?: { mes: number; percentual: number; liberacao: number; saldoLiberado: number; encargo: number }[];
+  primeiroImovelSfh?: boolean;
 };
+type Row = [label: string, value: number | undefined];
+
+// Nenhum valor zerado (ou ausente em simulações antigas) é exibido no relatório.
+const hasValue = (value: number | undefined): value is number => value !== undefined && Math.abs(value) >= 0.005;
+const m2 = (value: number) => `${NUMBER.format(value)} m²`;
+
 export const Route = createFileRoute("/_authenticated/simulacao/$id")({
   head: () => ({
     meta: [
@@ -83,6 +77,31 @@ export const Route = createFileRoute("/_authenticated/simulacao/$id")({
   }),
   component: Result,
 });
+
+function Rows({ title, rows, total }: { title: string; rows: Row[]; total?: Row }) {
+  const visible = rows.filter(([, value]) => hasValue(value));
+  if (visible.length === 0) return null;
+  return (
+    <section>
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <dl className="mt-3 divide-y border-y text-sm">
+        {visible.map(([label, value]) => (
+          <div className="flex justify-between gap-4 py-2.5" key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="shrink-0 font-semibold">{BRL.format(value ?? 0)}</dd>
+          </div>
+        ))}
+        {total && hasValue(total[1]) && (
+          <div className="flex justify-between gap-4 py-3 font-semibold">
+            <dt>{total[0]}</dt>
+            <dd className="shrink-0">{BRL.format(total[1])}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  );
+}
+
 function Result() {
   const { id } = Route.useParams();
   const nav = useNavigate();
@@ -106,6 +125,27 @@ function Result() {
       </AppShell>
     );
   const r = item.resultado as unknown as R;
+  const vender = item.objetivo === "vender";
+  const areaMin = r.areaViavelMinima ?? r.areaViavel;
+  const areaMax = r.areaViavelMaxima ?? r.areaViavel;
+  const lucro = r.lucroDesejado ?? item.lucro_desejado ?? 0;
+  const saldoRecursos = r.saldoRecursos ?? (r.recursosUtilizaveis !== undefined && r.custoTotal !== undefined ? r.recursosUtilizaveis - r.custoTotal - lucro : undefined);
+  const extras = (item.custos_extras as unknown as { descricao: string; valor: number }[]) ?? [];
+  const investidor = (r.participacaoInvestidor ?? 0) > 0;
+
+  const metrics = [
+    { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
+    { label: "Custo total", value: hasValue(r.custoTotal) ? BRL.format(r.custoTotal) : undefined, detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined },
+    vender
+      ? { label: "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
+      : { label: "Recursos utilizáveis", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
+    vender
+      ? { label: "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, tone: "text-primary" }
+      : hasValue(saldoRecursos)
+        ? { label: saldoRecursos >= 0 ? "Folga de recursos" : "Aporte necessário", value: BRL.format(Math.abs(saldoRecursos)), tone: saldoRecursos >= 0 ? "text-primary" : "text-destructive" }
+        : { label: "", value: undefined },
+  ].filter((metric) => metric.value !== undefined);
+
   return (
     <AppShell>
       <div className="flex justify-between">
@@ -141,167 +181,115 @@ function Result() {
           </AlertDialogContent>
         </AlertDialog></div>
       </div>
-      <div className="mt-5 flex flex-wrap items-start justify-between gap-5">
-        <div>
-          <p className="text-sm font-semibold text-primary">SINAL DE VIABILIDADE</p>
-          <h1 className="mt-2 text-3xl font-bold">{item.nome}</h1>
-          <p className="mt-2 text-muted-foreground">
-             Análise baseada nos recursos e no orçamento informados.
+      <div className="mt-5">
+        <p className="text-sm font-semibold text-primary">{vender ? "CONSTRUIR PARA VENDER" : "CONSTRUIR PARA MORAR"}</p>
+        <h1 className="mt-2 text-3xl font-bold">{item.nome}</h1>
+        {r.cubReferencia && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            CUB {r.cubReferencia.projeto} · {r.cubReferencia.competencia} · {r.cubReferencia.origem}
           </p>
-          {r.cubReferencia && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              CUB {r.cubReferencia.projeto} · {r.cubReferencia.competencia} ·{" "}
-              {r.cubReferencia.origem}
-            </p>
-          )}
-        </div>
-        <span className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
-          <CheckCircle2 className="size-4" />
-          Cálculo concluído
-        </span>
+        )}
       </div>
-      <section className="mt-8 grid gap-4 md:grid-cols-4">
-        <Card className="border-primary/30 md:col-span-2">
-          <CardContent className="p-6">
-             <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
-             <p className="mt-2 text-3xl font-bold text-primary">{NUMBER.format(r.areaViavelMinima ?? r.areaViavel)} a {NUMBER.format(r.areaViavelMaxima ?? r.areaViavel)} <span className="text-xl">m²</span></p>
-             <p className="mt-2 text-xs text-muted-foreground">BDI de 18% a 0% · custo real por m²</p>
-          </CardContent>
-        </Card>
-        {[
-          [r.maoDeObra !== undefined ? "Custo real por m²" : "Custo por m²", r.custoM2],
-          ["Reserva de 20%", r.contingencia],
-        ].map(([k, v]) => (
-          <Card key={String(k)}>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">{k}</p>
-              <p className="mt-3 text-xl font-semibold">{BRL.format(Number(v))}</p>
+
+      <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.label} className={metric.label === "Área viável" ? "border-primary/40" : ""}>
+            <CardContent className="p-4 md:p-5">
+              <p className="text-xs text-muted-foreground md:text-sm">{metric.label}</p>
+              <p className={`mt-2 text-lg font-bold md:text-2xl ${metric.tone ?? ""}`}>{metric.value}</p>
+              {metric.detail && <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>}
             </CardContent>
           </Card>
         ))}
       </section>
-      {r.maoDeObra !== undefined && <section className="mt-5 grid gap-3 border-y py-5 text-sm sm:grid-cols-3"><p>Mão de obra: <strong>{BRL.format(r.maoDeObra)}</strong>/m²</p><p>Materiais: <strong>{BRL.format(r.materiais ?? 0)}</strong>/m²</p><p>{(r.cubReferenciaValor ?? item.cub_valor_m2) > 0 ? <>CUB publicado: <strong>{BRL.format(r.cubReferenciaValor ?? item.cub_valor_m2)}</strong>/m² · +10%: {BRL.format(r.cubMaisDez ?? item.cub_valor_m2 * 1.1)}</> : "CUB publicado indisponível"}</p><p className="text-xs text-muted-foreground sm:col-span-3">O CUB é apenas referência comparativa; não garante aprovação do banco.</p></section>}
-      {r.entradaTotalReconhecida !== undefined && <section className="mt-8 border-y py-6">
-        <h2 className="text-xl font-semibold">Composição da operação</h2>
-        <div className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            ["Entrada em dinheiro", r.entradaDinheiro ?? 0],
-            ["FGTS pretendido", r.fgtsUtilizado ?? 0],
-            ["Ágio do lote · patrimônio, não caixa", r.agioLote ?? 0],
-            ["Entrada total reconhecida", r.entradaTotalReconhecida],
-            ["Financiamento total", item.credito_aprovado],
-            ["Quitação estimada do lote", r.quitacaoLote ?? 0],
-            ["Saldo do lote não coberto", r.saldoLoteNaoCoberto ?? 0],
-            ["Financiamento da construção", r.financiamentoConstrucao ?? 0],
-            ["Recursos utilizáveis na operação", r.recursosUtilizaveis ?? 0],
-            ["Despesas pré-contrato", r.despesasPreContrato ?? 0],
-            ["Entrada em dinheiro livre para início", r.entradaLivreInicioObra ?? 0],
-            ["Aporte adicional estimado", r.aporteAdicional ?? 0],
-          ].map(([label, value]) => <p key={String(label)}><span className="block text-muted-foreground">{label}</span><strong>{BRL.format(Number(value))}</strong></p>)}
-        </div>
-        <p className="mt-4 text-xs text-muted-foreground">O ágio compõe a entrada reconhecida, mas não é dinheiro disponível. O FGTS depende de elegibilidade e não foi contado como caixa livre no início. O financiamento é liberado por medições, não integralmente no início da obra.</p>
-        {(item.saldo_devedor_terreno ?? 0) > 0 && <p className="mt-2 text-xs text-muted-foreground">Percentual máximo financiável do lote: {NUMBER.format(r.percentualFinanciavelLote ?? 80)}%. Avaliação mínima de referência para quitar o saldo: {BRL.format(r.avaliacaoMinimaLote ?? 0)}. Confirme avaliação e regras do banco; eventual saldo não coberto exige recursos próprios.</p>}
-        <p className="mt-2 text-xs text-muted-foreground">Taxa anual informada: {NUMBER.format(r.taxaJurosAnual ?? 0)}% a.a. · mensal equivalente composta: {(r.taxaJurosMensalEquivalente ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}% a.m.</p>
-      </section>}
-      {item.objetivo === "vender" && <section className="mt-8 grid gap-4 md:grid-cols-3">
-        {[
-          ['Lucro desejado', r.lucroDesejado ?? item.lucro_desejado ?? 0],
-          ['Honorários desejados', r.despesas?.filter((x) => x.id === 'honorarios-entrada' || x.id === 'honorarios-saldo').reduce((sum, x) => sum + x.valor, 0) ?? r.honorarios ?? 0],
-          ['Administração do processo', r.despesas?.find((x) => x.id === 'administracao')?.valor ?? r.administracao ?? 0],
-        ].map(([label, value]) => (
-          <Card key={String(label)}><CardContent className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{BRL.format(Number(value))}</p></CardContent></Card>
-        ))}
-      </section>}
-      {item.objetivo === "vender" && r.valorVenda !== undefined && (
-        <section className="mt-8 grid gap-4 md:grid-cols-3">
-          {[['Valor estimado de venda', r.valorVenda], [`Corretagem (${NUMBER.format(r.corretagemPercentual ?? 0)}%)`, r.corretagemValor ?? 0]].map(([label, value]) => (
-            <Card key={String(label)}><CardContent className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{BRL.format(Number(value))}</p></CardContent></Card>
-          ))}
-        </section>
-      )}
-       {item.objetivo === "vender" && r.custoTotal !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Composição do preço</h2><p className="mt-2">Área planejada {NUMBER.format(r.areaPlanejada ?? r.areaViavel)} m² · construção {BRL.format(r.custoConstrucao ?? 0)} · extras {BRL.format(r.extrasTotal)} · despesas {BRL.format(r.despesasTotal ?? 0)} (projetos, honorários e administração inclusos) · reserva {BRL.format(r.contingencia)} · juros da obra {BRL.format((r.custoTotal ?? 0) - (r.custoConstrucao ?? 0) - r.extrasTotal - (r.despesasTotal ?? 0) - r.contingencia)} · lucro {BRL.format(r.lucroDesejado ?? 0)} · corretagem {BRL.format(r.corretagemValor ?? 0)}</p>{(r.aporteParaAreaPlanejada ?? 0) > 0 && <p className="mt-2 text-destructive">Aporte adicional para a área planejada: {BRL.format(r.aporteParaAreaPlanejada ?? 0)}</p>}</section>}
-       {item.objetivo === "vender" && r.mesesAposObra !== undefined && <section className="mt-6 border-y py-5 text-sm"><h2 className="font-semibold">Venda e investidor</h2><p className="mt-2">Venda {r.mesesAposObra} mês(es) após conclusão · encargos pós-obra estimados {BRL.format(r.jurosPosObra ?? 0)} · parcelas estimadas {BRL.format(r.parcelasEstimadas ?? 0)} · capital aportado pelo investidor {BRL.format(r.capitalAportadoInvestidor ?? r.capitalInvestidor ?? 0)} · participação {r.participacaoInvestidor ?? 0}%</p><p className="mt-2 text-xs text-muted-foreground">Capital estimado como despesas pré-contrato e juros de obra. Parcelas são saídas de caixa, incluindo amortização ilustrativa em 360 meses, que não é despesa adicional. Retorno pressupõe que o investidor arque com esse capital; confirme as condições contratuais.</p></section>}
-      {item.objetivo === "vender" && <section className="mt-10">
-        <h2 className="text-xl font-semibold">Três cenários</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          {r.cenarios.map((c, i) => (
-            <Card key={c.nome} className={i === 1 ? "border-primary/50" : ""}>
-              <CardContent className="p-5">
-                {i === 0 ? (
-                  <TrendingDown className="text-destructive" />
-                ) : i === 1 ? (
-                  <Minus className="text-secondary" />
-                ) : (
-                  <TrendingUp className="text-primary" />
-                )}
-                <p className="mt-5 font-semibold">{c.nome}</p>
-                 {c.venda !== undefined && <p className="mt-2 text-sm">Venda: {BRL.format(c.venda)}</p>}
-                <p className="mt-1 text-xs text-muted-foreground">Saldo final estimado</p>
-                <p
-                  className={`mt-3 text-2xl font-bold ${c.saldo >= 0 ? "text-primary" : "text-destructive"}`}
-                >
-                  {BRL.format(c.saldo)}
-                </p>
-                {c.lucroConstrutor !== undefined && <div className="mt-3 space-y-1 text-sm text-muted-foreground"><p>Construtor: {BRL.format(c.lucroConstrutor)}</p><p>Investidor: {BRL.format(c.lucroInvestidor ?? 0)}</p><p>Rentabilidade: {c.rentabilidadeInvestidor == null ? "—" : `${NUMBER.format(c.rentabilidadeInvestidor)}%`}</p></div>}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>}
-      <section className="mt-10 grid gap-8 lg:grid-cols-2">
-        <div>
-          <h2 className="text-xl font-semibold">Custos fora da construção por m²</h2>
-          <div className="mt-4 divide-y border-y">
-            {(item.custos_extras as unknown as { descricao: string; valor: number }[]).map(
-              (x, i) => (
-                <div className="flex justify-between py-3 text-sm" key={i}>
-                  <span className="text-muted-foreground">{x.descricao}</span>
-                  <strong>{BRL.format(x.valor)}</strong>
-                </div>
-              ),
-            )}
-            <div className="flex justify-between py-4">
-              <strong>Total</strong>
-              <strong>{BRL.format(r.extrasTotal)}</strong>
-            </div>
-          </div>
-          {r.despesas && (
-            <>
-              <h2 className="mt-8 text-xl font-semibold">Despesas adicionais</h2>
-              <div className="mt-4 divide-y border-y">
-                {r.despesas.map((x) => (
-                  <div className="flex justify-between gap-4 py-3 text-sm" key={x.id}>
-                    <span className="text-muted-foreground">{x.nome}</span>
-                    <strong>{BRL.format(x.valor)}</strong>
+
+      {vender && r.cenarios.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold">Cenários de venda</h2>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {r.cenarios.map((c, i) => (
+              <Card key={c.nome} className={i === 1 ? "border-primary/50" : ""}>
+                <CardContent className="p-4 md:p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">{c.nome}</p>
+                    {i === 0 ? <TrendingDown className="size-5 text-destructive" /> : i === 1 ? <Minus className="size-5 text-secondary" /> : <TrendingUp className="size-5 text-primary" />}
                   </div>
-                ))}
-                <div className="flex justify-between py-4">
-                  <strong>Total</strong>
-                  <strong>{BRL.format(r.despesasTotal ?? 0)}</strong>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-        <div>
-          <h2 className="text-xl font-semibold">Cronograma físico-financeiro</h2>
-          {r.liberacoesMensais && <div className="mt-4 border-y py-4"><p className="text-sm font-semibold">Liberações mensais · {r.prazoExecucaoMeses} meses</p><p className="mt-1 text-xs text-muted-foreground">Percentuais aplicados somente ao financiamento da construção ({BRL.format(r.financiamentoConstrucao ?? 0)}), sem a quitação do lote. Liberações previstas após a medição, ao fim de cada mês; encargos estimados sobre o saldo já liberado.</p><div className="mt-4 space-y-2">{r.liberacoesMensais.map((month) => <div key={month.mes} className="flex flex-wrap justify-between gap-x-4 text-sm"><span>Mês {month.mes} · {NUMBER.format(month.percentual)}%</span><span>{BRL.format(month.liberacao)} · encargo {BRL.format(month.encargo)}</span></div>)}</div><p className="mt-3 text-sm font-semibold">Juros de obra estimados: {BRL.format(r.jurosObra ?? 0)}</p></div>}
-          <div className="mt-4 border-l border-primary/40 pl-5">
-            {r.cronograma.map((s, i) => (
-              <div className="relative pb-5" key={s.nome}>
-                <span className="absolute -left-[25px] top-1 size-2 rounded-full bg-primary" />
-                <div className="flex justify-between text-sm">
-                  <span>
-                    {i + 1}. {s.nome}{" "}
-                    <span className="text-muted-foreground">({s.percentual}%)</span>
-                  </span>
-                  <strong>{BRL.format(s.valor)}</strong>
-                </div>
-              </div>
+                  {hasValue(c.venda) && <p className="mt-2 text-sm text-muted-foreground">Venda {BRL.format(c.venda)}</p>}
+                  <p className={`mt-1 text-2xl font-bold ${c.saldo >= 0 ? "text-primary" : "text-destructive"}`}>{BRL.format(c.saldo)}</p>
+                  {investidor && hasValue(c.lucroInvestidor) && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Investidor {BRL.format(c.lucroInvestidor)}
+                      {c.rentabilidadeInvestidor != null && ` (${NUMBER.format(c.rentabilidadeInvestidor)}%)`} · Construtor {BRL.format(c.lucroConstrutor ?? 0)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             ))}
           </div>
+          {(hasValue(r.mesesAposObra) || investidor) && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {hasValue(r.mesesAposObra) && `Venda ${r.mesesAposObra} meses após a obra${hasValue(r.jurosPosObra) ? `, com encargos de ${BRL.format(r.jurosPosObra)}` : ""}. `}
+              {investidor && `Investidor com ${NUMBER.format(r.participacaoInvestidor ?? 0)}% do resultado${hasValue(r.capitalAportadoInvestidor) ? ` e aporte de ${BRL.format(r.capitalAportadoInvestidor)}` : ""}.`}
+            </p>
+          )}
+        </section>
+      )}
+
+      <div className="mt-8 grid gap-8 lg:grid-cols-2">
+        <div className="space-y-8">
+          <Rows
+            title="Recursos"
+            rows={[
+              ["Entrada em dinheiro", r.entradaDinheiro],
+              ["FGTS", r.fgtsUtilizado],
+              ["Ágio do lote (patrimônio)", r.agioLote],
+              ["Financiamento total", item.credito_aprovado],
+              ["Quitação do lote", r.quitacaoLote],
+              ["Saldo do lote não coberto", r.saldoLoteNaoCoberto],
+              ["Financiamento da construção", r.financiamentoConstrucao],
+              ["Aporte adicional estimado", r.aporteAdicional],
+            ]}
+            total={["Recursos utilizáveis", r.recursosUtilizaveis]}
+          />
+          <Rows
+            title="Custos"
+            rows={[
+              [hasValue(r.areaPlanejada) ? `Construção (${m2(r.areaPlanejada)})` : "Construção", r.custoConstrucao],
+              ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
+              ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
+              [hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra],
+            ]}
+            total={["Custo total", r.custoTotal]}
+          />
+          {r.primeiroImovelSfh && <p className="text-xs text-muted-foreground">Registros com desconto de 50% do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH).</p>}
         </div>
-      </section>
+        <div className="space-y-8">
+          {r.liberacoesMensais && r.liberacoesMensais.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold">Liberações da PCI · {r.prazoExecucaoMeses ?? r.liberacoesMensais.length} meses</h2>
+              <table className="mt-3 w-full border-y text-sm">
+                <thead className="text-left text-xs text-muted-foreground">
+                  <tr><th className="py-2 font-normal">Mês</th><th className="py-2 text-right font-normal">Liberação</th><th className="py-2 text-right font-normal">Encargo</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                  {r.liberacoesMensais.filter((month) => hasValue(month.liberacao) || hasValue(month.encargo)).map((month) => (
+                    <tr key={month.mes}>
+                      <td className="py-2">{month.mes} <span className="text-muted-foreground">· {NUMBER.format(month.percentual)}%</span></td>
+                      <td className="py-2 text-right">{hasValue(month.liberacao) ? BRL.format(month.liberacao) : ""}</td>
+                      <td className="py-2 text-right text-muted-foreground">{hasValue(month.encargo) ? BRL.format(month.encargo) : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+          <Rows
+            title="Cronograma por etapa"
+            rows={r.cronograma.map((s, i): Row => [`${i + 1}. ${s.nome} (${NUMBER.format(s.percentual)}%)`, s.valor])}
+          />
+        </div>
+      </div>
+      <p className="mt-8 text-xs text-muted-foreground">Estimativas para decisão. Confirme valores com o banco, a prefeitura e o cartório.</p>
     </AppShell>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { annualToMonthlyRate, calculate, pciReleases, suggestedExecutionMonths, type SimulationInput } from "./finance";
+import { annualToMonthlyRate, calculate, estimatedExpenses, pciReleases, suggestedExecutionMonths, type SimulationInput } from "./finance";
+import { registroEstimate } from "./emolumentos";
 
 const input: SimulationInput = {
   credito: 400000, terreno: 200000, saldoDevedor: 100000,
@@ -44,6 +45,23 @@ describe("projeção financeira", () => {
     expect(calculate({ ...input, lucro: 35000 }).valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
     expect(calculate({ ...input, areaPlanejada: 125 }).valorVenda - initial.valorVenda).toBeCloseTo(10000 / 0.95);
     expect(initial.capitalAportadoInvestidor).toBeCloseTo(10000 + initial.jurosObra);
+  });
+
+  it("usa todos os recursos operacionais, sem reserva fixa", () => {
+    const result = calculate({ ...input, despesas: [], lucro: 0 });
+    expect(result.disponivel).toBeCloseTo(result.recursosUtilizaveis - result.jurosObra);
+    expect(result.areaViavelMaxima).toBeCloseTo(result.disponivel / 2000);
+    expect(result.saldoRecursos).toBeCloseTo(result.recursosUtilizaveis - result.custoTotal);
+  });
+
+  it("aplica o desconto do SFH e a tabela oficial do CE nos registros", () => {
+    const despesas = (sfh: boolean) => estimatedExpenses(100000, 400000, 0, 0, 0, 2500, 100, "CE", sfh);
+    const valor = (items: ReturnType<typeof despesas>, id: string) => items.find((item) => item.id === id)?.valor ?? 0;
+    // Faixa até R$ 6.917,21: emolumento R$ 472,51, total R$ 600,22 na tabela do TJCE.
+    expect(registroEstimate("CE", 5000, false).valor).toBeCloseTo(600.22, 1);
+    expect(valor(despesas(true), "registro-compra")).toBeCloseTo(valor(despesas(false), "registro-compra") / 2, 2);
+    expect(valor(despesas(true), "alienacao")).toBeCloseTo(valor(despesas(false), "alienacao") / 2, 2);
+    expect(registroEstimate("SP", 100000, false).oficial).toBe(false);
   });
 
   it("pré-preenche PCI até 320 m² e sugere 18 meses acima dessa área", () => {

@@ -31,3 +31,8 @@
 - [x] Sugerir prazo e liberações mensais editáveis da PCI, exclusivamente sobre financiamento da construção
 - [x] Calcular juros estimados de obra e capital aportado pelo investidor a partir de despesas pré-contrato
 - [x] Validar os cálculos, a edição e a apresentação em desktop e celular
+- [x] Remover a reserva fixa de 20% e usar todos os recursos operacionais na área viável
+- [x] Exibir resumo em tempo real durante o preenchimento da simulação
+- [x] Calcular registros pela tabela oficial da UF (CE) e aplicar desconto de 50% do SFH (Art. 290)
+- [x] Simplificar o relatório final e ocultar valores zerados
+- [ ] Cadastrar tabelas oficiais de emolumentos das demais UFs
