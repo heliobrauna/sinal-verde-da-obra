@@ -47,7 +47,6 @@ export type SimulationInput = {
   terreno: number;
   saldoDevedor: number;
   valorImovel: number;
-  aporteProprioObra: number;
   fgtsUtilizado: number;
   percentualFinanciavelLote: number;
   cub: number;
@@ -67,6 +66,11 @@ export type SimulationInput = {
   origemTerreno: OrigemTerreno;
   selicAnual: number;
   premioInvestidor: number;
+  // Custos de vender o lote hoje: definem o valor líquido que o investidor abre mão ao usá-lo na obra.
+  corretagemLote: number;
+  custoAquisicaoLote: number;
+  // Na venda, quanto o construtor quer ganhar; null usa o lucro informado diretamente.
+  lucroConstrutor: number | null;
 };
 
 const PCI_PRESETS: Record<number, number[]> = {
@@ -171,7 +175,34 @@ export function estimatedExpenses(
   ];
 }
 
+// Imposto de renda sobre ganho de capital de pessoa física (sem fatores de redução).
+const IR_GANHO_CAPITAL = 0.15;
+
+// Na venda com lucro do construtor definido, o lucro total precisa cobrir encargos até a venda,
+// o retorno preferencial e as duas partes do excedente. Como o lucro também muda área e capital,
+// o valor é encontrado por aproximações sucessivas.
 export function calculate(input: SimulationInput) {
+  if (input.objetivo !== "vender" || input.lucroConstrutor === null) return calcular(input);
+  const lucroConstrutor = Math.max(input.lucroConstrutor, 0);
+  const participacao = Math.min(100, Math.max(0, input.participacaoInvestidor));
+  const excedenteNecessario = participacao < 100 ? lucroConstrutor / (1 - participacao / 100) : 0;
+  let lucro = Math.max(input.lucro, 0);
+  let result = calcular({ ...input, lucro });
+  for (let i = 0; i < 40; i++) {
+    const necessario = result.jurosPosObra + result.retornoPreferencial + excedenteNecessario;
+    if (Math.abs(necessario - lucro) < 0.01) break;
+    lucro = necessario;
+    result = calcular({ ...input, lucro });
+  }
+  return {
+    ...result,
+    lucroConstrutorDesejado: lucroConstrutor,
+    excedenteNecessario,
+    construtorSemExcedente: participacao >= 100 && lucroConstrutor > 0,
+  };
+}
+
+function calcular(input: SimulationInput) {
   const soma = (items: { valor: number }[]) => items.reduce((sum, item) => sum + Number(item.valor || 0), 0);
   const extrasTotal = soma(input.extras);
   const despesasTotal = soma(input.despesas);
@@ -202,9 +233,8 @@ export function calculate(input: SimulationInput) {
   const financiamentoExcedente = financiamentoDisponivelObra - financiamentoConstrucao;
   // Saldo do lote que o banco não quita e que a entrada em dinheiro/FGTS não cobre sai do bolso na assinatura.
   const complementoLote = Math.max(saldoLoteNaoCoberto - dinheiroEntrada - fgtsNaEntrada, 0);
-  const aporteProprioObra = Math.max(input.aporteProprioObra, 0);
   const verbaContrato = Math.min(financiamentoConstrucao + fgtsNaEntrada + dinheiroEntrada, orcamentoObraContrato);
-  const recursosUtilizaveis = verbaContrato + aporteProprioObra;
+  const recursosUtilizaveis = verbaContrato;
 
   const taxaMensalPercentual = annualToMonthlyRate(input.jurosAnuais);
   const taxaMensal = taxaMensalPercentual / 100;
@@ -222,7 +252,9 @@ export function calculate(input: SimulationInput) {
   // A verba da obra paga construção, extras e despesas durante a obra. Despesas antes do contrato,
   // da assinatura e os juros mensais de obra saem do bolso do cliente.
   const custoM2 = input.maoDeObra + input.materiais;
-  const disponivel = Math.max(0, recursosUtilizaveis - extrasTotal - despesasObra - input.lucro);
+  // Para morar, a remuneração do responsável sai da verba da obra; na venda, o lucro vem do preço.
+  const reservaLucro = input.objetivo === "morar" ? Math.max(input.lucro, 0) : 0;
+  const disponivel = Math.max(0, recursosUtilizaveis - extrasTotal - despesasObra - reservaLucro);
   const areaViavelMaxima = custoM2 > 0 ? disponivel / custoM2 : 0;
   const areaViavelMinima = custoM2 > 0 ? disponivel / (custoM2 * 1.18) : 0;
   const areaViavel = areaViavelMinima;
@@ -232,12 +264,13 @@ export function calculate(input: SimulationInput) {
   const custoTotal = custoConstrucao + extrasTotal + despesasTotal + jurosObra;
   const custoComTerreno = custoTotal + input.terreno;
   // Positivo: sobra na verba da obra; negativo: aporte necessário para a área planejada.
-  const saldoRecursos = recursosUtilizaveis - custoObra - input.lucro;
+  const saldoRecursos = recursosUtilizaveis - custoObra - reservaLucro;
   const aporteParaAreaPlanejada = Math.max(-saldoRecursos, 0);
 
   const desembolsoAntesContrato = despesasPreContrato;
   const desembolsoAssinatura = dinheiroEntrada + complementoLote + despesasAssinatura;
-  const desembolsoDuranteObra = jurosObra + aporteProprioObra + aporteParaAreaPlanejada;
+  // Área planejada acima da viável: a diferença sai do bolso do cliente.
+  const desembolsoDuranteObra = jurosObra + aporteParaAreaPlanejada;
   const desembolsoProprio = desembolsoAntesContrato + desembolsoAssinatura + desembolsoDuranteObra;
   const maiorEncargoMensal = liberacoesMensais.reduce((max, item) => Math.max(max, item.encargo), 0);
 
@@ -250,16 +283,21 @@ export function calculate(input: SimulationInput) {
   // Investidor: quem financia no próprio nome. Cada aporte tem um mês (0 = assinatura).
   const mesesObra = input.liberacoes.length;
   const mesVenda = mesesObra + mesesAposObra;
-  const patrimonioTerreno = input.origemTerreno === "investidor" ? agioLote : 0;
+  // Lote próprio: vale o que o investidor receberia vendendo-o hoje (menos corretagem e IR sobre o ganho).
+  const loteProprio = input.origemTerreno === "investidor" && agioLote > 0;
+  const corretagemLoteValor = loteProprio ? input.terreno * Math.min(Math.max(input.corretagemLote, 0), 100) / 100 : 0;
+  const ganhoCapitalLote = loteProprio && input.custoAquisicaoLote > 0 ? Math.max(input.terreno - corretagemLoteValor - input.custoAquisicaoLote, 0) : 0;
+  const irGanhoLote = ganhoCapitalLote * IR_GANHO_CAPITAL;
+  const patrimonioTerreno = loteProprio ? Math.max(agioLote - corretagemLoteValor - irGanhoLote, 0) : 0;
   // Entrada em dinheiro e FGTS são aplicados primeiro na obra e reduzem o capital de giro necessário.
   const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - dinheiroEntrada - fgtsNaEntrada, 0);
   const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
   const aportesInvestidor: InvestorFlow[] = [
-    { mes: 0, rotulo: "Terreno (patrimônio)", valor: patrimonioTerreno },
+    { mes: 0, rotulo: "Terreno (valor líquido se vendido)", valor: patrimonioTerreno },
     { mes: 0, rotulo: "Entrada · FGTS", valor: fgtsNaEntrada },
     { mes: 0, rotulo: "Entrada · dinheiro", valor: dinheiroEntrada + complementoLote },
     { mes: 0, rotulo: "Despesas pré-obra", valor: despesasPreContrato + despesasAssinatura },
-    { mes: 0, rotulo: "Recursos extras e aporte de área", valor: aporteProprioObra + aporteParaAreaPlanejada },
+    { mes: 0, rotulo: "Aporte para a área planejada", valor: aporteParaAreaPlanejada },
     { mes: 0, rotulo: "Capital de giro inicial (10% da obra)", valor: capitalGiro, retornoMes: mesesObra },
     ...liberacoesMensais.map((item) => ({ mes: item.mes, rotulo: "Juros de obra", valor: item.encargo })),
     ...Array.from({ length: mesesAposObra }, (_, index) => ({ mes: mesesObra + index + 1, rotulo: "Parcelas até a venda", valor: parcelaPosObra })),
@@ -314,11 +352,13 @@ export function calculate(input: SimulationInput) {
     capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
     origemTerreno: input.origemTerreno, selicAnual, aliquotaIr, selicLiquida, premioInvestidor: input.premioInvestidor,
     taxaPreferencial, retornoPreferencial, mesVenda, recebimentoConstrutorLote,
+    corretagemLoteValor, ganhoCapitalLote, irGanhoLote,
+    lucroConstrutorDesejado: null as number | null, excedenteNecessario: 0, construtorSemExcedente: false,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
     agioLote, agioNaEntrada, fgtsUtilizado: input.fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
     percentualFinanciavelLote, limiteFinanciavelLote, avaliacaoMinimaLote,
     quitacaoLote, saldoLoteNaoCoberto, complementoLote, orcamentoObraContrato,
-    financiamentoConstrucao, financiamentoExcedente, aporteProprioObra, recursosUtilizaveis,
+    financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,
     desembolsoAntesContrato, desembolsoAssinatura, desembolsoDuranteObra, desembolsoProprio, maiorEncargoMensal,
     taxaJurosAnual: input.jurosAnuais, taxaJurosMensalEquivalente: taxaMensalPercentual,
     prazoExecucaoMeses: input.liberacoes.length, liberacoesMensais,

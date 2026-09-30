@@ -41,3 +41,5 @@
 - [x] Separar a verba da obra do dinheiro do cliente (antes do contrato, assinatura e juros de obra)
 - [x] Considerar a origem do terreno (investidor, construtor ou compra) na entrada, nas despesas e no capital
 - [x] Datar o capital do investidor e dividir a venda em cascata com retorno preferencial acima da Selic
+- [x] Contar o lote próprio pelo valor líquido de venda (corretagem e IR sobre o ganho)
+- [x] Formar o preço de venda a partir do lucro desejado do construtor

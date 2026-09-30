@@ -66,7 +66,6 @@ type R = {
   complementoLote?: number;
   orcamentoObraContrato?: number;
   financiamentoExcedente?: number;
-  aporteProprioObra?: number;
   despesasAssinatura?: number;
   desembolsoAntesContrato?: number;
   desembolsoAssinatura?: number;
@@ -84,6 +83,9 @@ type R = {
   mesVenda?: number;
   origemTerreno?: "investidor" | "construtor" | "compra";
   recebimentoConstrutorLote?: number;
+  lucroConstrutorDesejado?: number | null;
+  corretagemLoteValor?: number;
+  irGanhoLote?: number;
 };
 type Row = [label: string, value: number | undefined];
 
@@ -170,7 +172,7 @@ function Result() {
       ? { label: "Custo com terreno", value: BRL.format(r.custoComTerreno), detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined }
       : { label: "Custo total", value: hasValue(r.custoTotal) ? BRL.format(r.custoTotal) : undefined, detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined },
     vender
-      ? { label: "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, tone: "text-primary" }
+      ? { label: r.lucroConstrutorDesejado != null ? "Lucro total na venda" : "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, detail: hasValue(r.lucroConstrutorDesejado ?? undefined) ? `Construtor: ${BRL.format(r.lucroConstrutorDesejado ?? 0)}` : undefined, tone: "text-primary" }
       : { label: "Dinheiro do cliente", value: hasValue(r.desembolsoProprio) ? BRL.format(r.desembolsoProprio) : undefined, tone: "text-secondary" },
   ].filter((metric) => metric.value !== undefined);
 
@@ -278,6 +280,7 @@ function Result() {
                   <li><strong>2. Retorno preferencial</strong> de {NUMBER.format(r.taxaPreferencial ?? 0)}% a.a.: Selic {NUMBER.format(r.selicAnual ?? 0)}% − IR {NUMBER.format(r.aliquotaIr ?? 0)}% + prêmio de {NUMBER.format(r.premioInvestidor ?? 0)} p.p. = {BRL.format(r.retornoPreferencial ?? 0)} até o mês {r.mesVenda}.</li>
                   <li><strong>3. Excedente</strong> dividido: {NUMBER.format(r.participacaoInvestidor ?? 0)}% investidor · {NUMBER.format(100 - (r.participacaoInvestidor ?? 0))}% construtor.</li>
                 </ol>
+                {(hasValue(r.corretagemLoteValor) || hasValue(r.irGanhoLote)) && <p className="mt-2 text-xs text-muted-foreground">Terreno no capital pelo valor líquido de venda: descontados {hasValue(r.corretagemLoteValor) ? `corretagem de ${BRL.format(r.corretagemLoteValor)}` : ""}{hasValue(r.corretagemLoteValor) && hasValue(r.irGanhoLote) ? " e " : ""}{hasValue(r.irGanhoLote) ? `IR de ${BRL.format(r.irGanhoLote)} sobre o ganho` : ""}.</p>}
                 {hasValue(r.recebimentoConstrutorLote) && <p className="mt-2 text-xs text-muted-foreground">O construtor recebe {BRL.format(r.recebimentoConstrutorLote)} pelo lote na assinatura.</p>}
               </section>
             </div>
@@ -298,7 +301,6 @@ function Result() {
               ["Entrada · dinheiro", r.dinheiroEntrada],
               ["Quitação do lote", r.quitacaoLote],
               ["Financiamento para a obra", r.financiamentoConstrucao],
-              ["Recursos próprios extras", r.aporteProprioObra],
             ]}
             total={["Verba da obra", r.recursosUtilizaveis]}
           />

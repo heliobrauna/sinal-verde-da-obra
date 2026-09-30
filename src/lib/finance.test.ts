@@ -4,12 +4,13 @@ import { registroEstimate } from "./emolumentos";
 
 const input: SimulationInput = {
   credito: 400000, terreno: 200000, saldoDevedor: 100000,
-  valorImovel: 500000, aporteProprioObra: 0, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
+  valorImovel: 500000, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
   cub: 2500, maoDeObra: 1000, materiais: 1000, areaPlanejada: 120,
   extras: [], objetivo: "vender", lucro: 30000, corretagem: 5,
   prazo: 0, jurosAnuais: 10, stages: [], liberacoes: pciReleases(6),
   despesas: [{ id: "projetos", categoria: "Despesas iniciais", nome: "Projetos", valor: 10000, fonte: "Estimativa", observacao: "" }],
   participacaoInvestidor: 50, origemTerreno: "investidor", selicAnual: 13.75, premioInvestidor: 5,
+  corretagemLote: 0, custoAquisicaoLote: 0, lucroConstrutor: null,
 };
 
 describe("projeção financeira", () => {
@@ -97,6 +98,28 @@ describe("projeção financeira", () => {
     const sem = estimatedExpenses(100000, 400000, 0, 0, 0, 2500, 100, "SP", false, false);
     expect(sem.find((item) => item.id === "itbi")?.valor).toBe(0);
     expect(sem.find((item) => item.id === "registro-compra")?.valor).toBe(0);
+  });
+
+  it("conta o lote próprio pelo valor líquido de corretagem e IR sobre o ganho", () => {
+    const result = calculate({ ...input, corretagemLote: 5, custoAquisicaoLote: 120000 });
+    expect(result.corretagemLoteValor).toBe(10000);
+    expect(result.irGanhoLote).toBeCloseTo((200000 - 10000 - 120000) * 0.15);
+    expect(result.patrimonioTerreno).toBeCloseTo(100000 - 10000 - 10500);
+  });
+
+  it("forma o preço para o construtor ganhar o valor desejado no cenário realista", () => {
+    const result = calculate({ ...input, lucroConstrutor: 40000, prazo: 6 });
+    const realista = result.cenarios[1]!;
+    expect(realista.lucroConstrutor).toBeCloseTo(40000, 0);
+    expect(realista.lucroInvestidor).toBeCloseTo(result.retornoPreferencial + 40000, 0);
+    expect(result.lucroDesejado).toBeCloseTo(result.jurosPosObra + result.retornoPreferencial + 80000, 0);
+    expect(realista.superaSelic).toBe(true);
+  });
+
+  it("na venda, o lucro vem do preço e não reduz a área viável; para morar, é reservado da verba", () => {
+    expect(calculate({ ...input, lucro: 90000 }).areaViavelMaxima).toBeCloseTo(calculate({ ...input, lucro: 0 }).areaViavelMaxima);
+    const morar = (lucro: number) => calculate({ ...input, objetivo: "morar", lucro }).areaViavelMaxima;
+    expect(morar(0) - morar(20000)).toBeCloseTo(20000 / 2000);
   });
 
   it("usa todos os recursos operacionais, sem reserva fixa", () => {

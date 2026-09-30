@@ -11,7 +11,7 @@
 
 - Keep viability as a BDI 18%–0% area range; persist 18% only as the conservative legacy database value, because users no longer choose BDI.
 - For sale simulations, derive the asking price as `(total costs + desired profit in BRL) / (1 - brokerage rate)`, because profit is a currency target and brokerage must be covered by the sale.
-- Reserve desired profit/remuneration from buildable credit in both goals, but add it only once to the sale price; honoraria and administration flow through the expense breakdown so they are never added again to total costs.
+- Reserve the builder remuneration from buildable credit only when building to live in (morar); for sale, profit comes from the sale price and never reduces the viable area. Add profit only once to the sale price; honoraria and administration flow through the expense breakdown so they are never added again to total costs.
 - Use labor plus materials per m² as the real build cost for area and sale calculations; keep published CUB and CUB+10% as non-binding comparison only. Persist new simulation assumptions inside resultado JSON so legacy records remain readable without schema changes.
 - Post-construction installments are cash outflows, not wholly interest expense; show estimated financing charges separately and label investor return assumptions instead of asserting bank-exact totals.
 - Persist entry, FGTS intended for use, lot equity, annual compound-equivalent interest and PCI monthly releases in resultado JSON; keep the legacy monthly rate column monthly so old simulations can be edited without migration.
@@ -25,3 +25,4 @@
 - Building permit estimate: R$ 2,00 per m² + R$ 52,00; permit and INSS estimates follow the planned area (viable area until it is set).
 - Lot origin: investidor (own lot; equity counts in the entry and as investor capital; no ITBI/purchase registry when paid off), construtor or compra (lot bought in the operation: no equity, ITBI and registry due, full price paid to the seller at signing; the builder receives it).
 - Sale split is a cascade: return investor capital, then a preferred return at net Selic (regressive IR by term) + premium, then split the surplus by the investor share. Investor return is an annualized IRR compared with net Selic; Selic comes from the BCB SGS series 432 (editable).
+- Own lot enters investor capital at its net liquidation value: equity minus brokerage (default 5%) and 15% IR on the gain over the purchase price (optional input). For sale, the user enters the builder desired profit; total profit = post-build charges + preferred return + both surplus shares, solved by fixed-point iteration, and it drives the sale price. There is no separate own-resources field: planned area above the viable one generates the client aporte.
