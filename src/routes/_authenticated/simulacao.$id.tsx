@@ -53,6 +53,10 @@ type R = {
   taxaJurosAnual?: number;
   taxaJurosMensalEquivalente?: number;
   jurosObra?: number;
+  jurosObraJuros?: number;
+  jurosObraTr?: number;
+  jurosObraSeguros?: number;
+  trMensal?: number;
   capitalAportadoInvestidor?: number;
   prazoExecucaoMeses?: number;
   liberacoesMensais?: { mes: number; percentual: number; liberacao: number; saldoLiberado: number; encargo: number }[];
@@ -312,11 +316,11 @@ function Result() {
               ...(r.despesasAssinatura !== undefined
                 ? [["Taxas e cartório na assinatura", r.despesasAssinatura + (r.complementoLote ?? 0)] as Row, ["Entrada em dinheiro (aplicada na obra)", r.dinheiroEntrada] as Row]
                 : [["Na assinatura", r.desembolsoAssinatura] as Row]),
-              [hasValue(r.prazoExecucaoMeses) ? `Durante a obra (${r.prazoExecucaoMeses} meses de juros)` : "Durante a obra", r.desembolsoDuranteObra],
+              [hasValue(r.prazoExecucaoMeses) ? `Durante a obra (${r.prazoExecucaoMeses} meses de encargos)` : "Durante a obra", r.desembolsoDuranteObra],
             ]}
             total={["Total do bolso do cliente", r.desembolsoProprio]}
           />
-          {hasValue(r.maiorEncargoMensal) && <p className="-mt-6 text-xs text-muted-foreground">Maior parcela de juros de obra: {BRL.format(r.maiorEncargoMensal)}/mês. O FGTS não paga taxas nem juros.</p>}
+          {hasValue(r.maiorEncargoMensal) && <p className="-mt-6 text-xs text-muted-foreground">Maior encargo mensal de obra: {BRL.format(r.maiorEncargoMensal)}. Encargos = juros + TR sobre a dívida já liberada (lote desde a assinatura + parcelas medidas) + seguros e tarifa. O FGTS não paga taxas nem encargos.</p>}
           <Rows
             title="Custos"
             rows={[
@@ -324,7 +328,13 @@ function Result() {
               [hasValue(r.areaPlanejada) ? `Construção (${m2(r.areaPlanejada)})` : "Construção", r.custoConstrucao],
               ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
               ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
-              [hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra],
+              ...(r.jurosObraJuros !== undefined
+                ? [
+                    [hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObraJuros] as Row,
+                    [hasValue(r.trMensal) ? `Atualização pela TR (${NUMBER.format(r.trMensal ?? 0)}% a.m.)` : "Atualização pela TR", r.jurosObraTr] as Row,
+                    ["Seguros e tarifa na obra", r.jurosObraSeguros] as Row,
+                  ]
+                : [[hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra] as Row]),
             ]}
             total={vender && hasValue(r.custoComTerreno) ? ["Custo com terreno", r.custoComTerreno] : ["Custo total", r.custoTotal]}
           />
@@ -339,6 +349,13 @@ function Result() {
                   <tr><th className="py-2 font-normal">Mês</th><th className="py-2 text-right font-normal">Liberação</th><th className="py-2 text-right font-normal">Encargo</th></tr>
                 </thead>
                 <tbody className="divide-y">
+                  {hasValue(r.quitacaoLote) && r.jurosObraJuros !== undefined && (
+                    <tr>
+                      <td className="py-2">Assinatura <span className="text-muted-foreground">· lote</span></td>
+                      <td className="py-2 text-right">{BRL.format(r.quitacaoLote)}</td>
+                      <td className="py-2 text-right text-muted-foreground"></td>
+                    </tr>
+                  )}
                   {r.liberacoesMensais.filter((month) => hasValue(month.liberacao) || hasValue(month.encargo)).map((month) => (
                     <tr key={month.mes}>
                       <td className="py-2">{month.mes} <span className="text-muted-foreground">· {NUMBER.format(month.percentual)}%</span></td>

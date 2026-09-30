@@ -10,7 +10,7 @@ const input: SimulationInput = {
   prazo: 0, jurosAnuais: 10, stages: [], liberacoes: pciReleases(6),
   despesas: [{ id: "projetos", categoria: "Despesas iniciais", nome: "Projetos", valor: 10000, fonte: "Estimativa", observacao: "" }],
   participacaoInvestidor: 50, origemTerreno: "investidor", selicAnual: 13.75, premioInvestidor: 5,
-  corretagemLote: 0, custoAquisicaoLote: 0, lucroConstrutor: null,
+  corretagemLote: 0, custoAquisicaoLote: 0, lucroConstrutor: null, trMensal: 0, seguroTarifaMensal: 0,
 };
 
 describe("projeção financeira", () => {
@@ -59,7 +59,6 @@ describe("projeção financeira", () => {
     expect(annualToMonthlyRate(10)).toBeCloseTo(0.797414, 5);
     expect(result.areaViavelMinima).toBeCloseTo(result.areaViavelMaxima / 1.18);
     expect(result.jurosObra).toBeGreaterThan(0);
-    expect(result.liberacoesMensais[0]?.encargo).toBe(0);
   });
 
   it("atualiza o preço com projetos, lucro e área sem duplicar honorários", () => {
@@ -137,6 +136,24 @@ describe("projeção financeira", () => {
     expect(valor(despesas(true), "registro-compra")).toBeCloseTo(valor(despesas(false), "registro-compra") / 2, 2);
     expect(valor(despesas(true), "alienacao")).toBeCloseTo(valor(despesas(false), "alienacao") / 2, 2);
     expect(registroEstimate("SP", 100000, false).oficial).toBe(false);
+  });
+
+  it("cobra encargos de obra sobre o lote quitado na assinatura, somando TR, juros e seguros", () => {
+    const result = calculate({ ...input, trMensal: 0.15, seguroTarifaMensal: 80 });
+    const i = annualToMonthlyRate(10) / 100;
+    // Mês 1: só o lote (R$ 100 mil) já é dívida; a 1ª parcela da obra é liberada ao fim do mês.
+    const mes1 = result.liberacoesMensais[0]!;
+    expect(mes1.saldoBase).toBe(100000);
+    expect(mes1.encargo).toBeCloseTo(100000 * 0.0015 + 100000 * 1.0015 * i + 80);
+    // Mês 2 já inclui a 1ª liberação da obra.
+    expect(result.liberacoesMensais[1]?.saldoBase).toBeCloseTo(100000 + result.liberacoesMensais[0]!.liberacao);
+    expect(result.dividaFinal).toBeCloseTo(400000);
+    expect(result.jurosObra).toBeCloseTo(result.jurosObraJuros + result.jurosObraTr + result.jurosObraSeguros);
+  });
+
+  it("sem lote financiado, o primeiro mês só paga seguros e tarifa", () => {
+    const result = calculate({ ...input, saldoDevedor: 0, seguroTarifaMensal: 80 });
+    expect(result.liberacoesMensais[0]?.encargo).toBe(80);
   });
 
   it("pré-preenche PCI até 320 m² e sugere 18 meses acima dessa área", () => {

@@ -59,6 +59,9 @@ export type SimulationInput = {
   corretagem: number;
   prazo: number;
   jurosAnuais: number;
+  // Atualização monetária (TR, % ao mês) e seguros MIP/DFI + tarifa de administração (R$ por mês).
+  trMensal: number;
+  seguroTarifaMensal: number;
   stages: Stage[];
   liberacoes: MonthlyRelease[];
   despesas: ClientExpense[];
@@ -238,15 +241,29 @@ function calcular(input: SimulationInput) {
 
   const taxaMensalPercentual = annualToMonthlyRate(input.jurosAnuais);
   const taxaMensal = taxaMensalPercentual / 100;
-  let saldoLiberado = 0;
+  const trMensal = Math.max(input.trMensal, 0) / 100;
+  const seguroTarifaMensal = Math.max(input.seguroTarifaMensal, 0);
+  // Encargos da fase de obra (cartilha Caixa): sobre a dívida já liberada incidem atualização monetária
+  // AM = SD × TR e juros = (SD + AM) × taxa mensal, mais seguros e tarifa. Não há amortização.
+  // A parte do lote paga pelo banco é liberada na assinatura e já compõe a dívida desde o 1º encargo;
+  // as parcelas da obra são liberadas ao fim de cada mês, após a medição.
+  let saldoLiberado = quitacaoLote;
   let jurosObra = 0;
+  let jurosObraJuros = 0;
+  let jurosObraTr = 0;
+  let jurosObraSeguros = 0;
   const liberacoesMensais = input.liberacoes.map((item) => {
-    // A medição libera recursos ao fim do mês; os encargos incidem sobre o saldo já liberado.
-    const encargo = saldoLiberado * taxaMensal;
+    const saldoBase = saldoLiberado;
+    const atualizacao = saldoBase * trMensal;
+    const juros = (saldoBase + atualizacao) * taxaMensal;
+    const encargo = atualizacao + juros + seguroTarifaMensal;
     jurosObra += encargo;
+    jurosObraJuros += juros;
+    jurosObraTr += atualizacao;
+    jurosObraSeguros += seguroTarifaMensal;
     const liberacao = financiamentoConstrucao * item.percentual / 100;
     saldoLiberado += liberacao;
-    return { ...item, liberacao, saldoLiberado, encargo };
+    return { ...item, liberacao, saldoLiberado, saldoBase, juros, atualizacao, encargo };
   });
 
   // A verba da obra paga construção, extras e despesas durante a obra. Despesas antes do contrato,
@@ -278,7 +295,8 @@ function calcular(input: SimulationInput) {
   const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
   const valorVenda = input.objetivo === "vender" ? (custoComTerreno + input.lucro) / (1 - taxaCorretagem) : recursosUtilizaveis;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
-  const jurosPosObra = saldoLiberado * taxaMensal * mesesAposObra;
+  // Após a obra: juros e TR sobre a dívida inteira (lote + obra), mais seguros e tarifa, até a venda.
+  const jurosPosObra = (saldoLiberado * (trMensal + (1 + trMensal) * taxaMensal) + seguroTarifaMensal) * mesesAposObra;
   const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / 360 * mesesAposObra);
   // Investidor: quem financia no próprio nome. Cada aporte tem um mês (0 = assinatura).
   const mesesObra = input.liberacoes.length;
@@ -361,6 +379,7 @@ function calcular(input: SimulationInput) {
     financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,
     desembolsoAntesContrato, desembolsoAssinatura, desembolsoDuranteObra, desembolsoProprio, maiorEncargoMensal,
     taxaJurosAnual: input.jurosAnuais, taxaJurosMensalEquivalente: taxaMensalPercentual,
+    trMensal: input.trMensal, seguroTarifaMensal, jurosObraJuros, jurosObraTr, jurosObraSeguros, dividaFinal: saldoLiberado,
     prazoExecucaoMeses: input.liberacoes.length, liberacoesMensais,
     cronograma: input.stages.map((stage) => ({ ...stage, valor: financiamentoConstrucao * stage.percentual / 100 })),
   };
