@@ -316,7 +316,13 @@ function Result() {
               ...(r.despesasAssinatura !== undefined
                 ? [["Taxas e cartório na assinatura", r.despesasAssinatura + (r.complementoLote ?? 0)] as Row, ["Entrada em dinheiro (aplicada na obra)", r.dinheiroEntrada] as Row]
                 : [["Na assinatura", r.desembolsoAssinatura] as Row]),
-              [hasValue(r.prazoExecucaoMeses) ? `Durante a obra (${r.prazoExecucaoMeses} meses de encargos)` : "Durante a obra", r.desembolsoDuranteObra],
+              // Encargos de obra e aporte para a área planejada são coisas distintas; separa quando os dois existem.
+              ...(r.jurosObra !== undefined
+                ? [
+                    [hasValue(r.prazoExecucaoMeses) ? `Encargos de obra (${r.prazoExecucaoMeses} meses)` : "Encargos de obra", r.jurosObra] as Row,
+                    [hasValue(r.areaPlanejada) ? `Aporte para construir ${m2(r.areaPlanejada)} (acima da área viável)` : "Aporte para a área planejada", r.aporteParaAreaPlanejada] as Row,
+                  ]
+                : [[hasValue(r.prazoExecucaoMeses) ? `Durante a obra (${r.prazoExecucaoMeses} meses)` : "Durante a obra", r.desembolsoDuranteObra] as Row]),
             ]}
             total={["Total do bolso do cliente", r.desembolsoProprio]}
           />
