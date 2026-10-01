@@ -179,6 +179,8 @@ export function estimatedExpenses(
 
 // Parte do contrato que pode quitar o lote.
 export const LIMITE_LOTE_CONTRATO = 0.3;
+// Parte do lote e da obra que a Caixa financia.
+const PERCENTUAL_FINANCIADO_PARTE = 0.8;
 
 // Imposto de renda sobre ganho de capital de pessoa física (sem fatores de redução).
 const IR_GANHO_CAPITAL = 0.15;
@@ -237,6 +239,12 @@ function calcular(input: SimulationInput) {
   const financiamentoExcedente = financiamentoDisponivelObra - financiamentoConstrucao;
   // Saldo do lote que o banco não quita e que a entrada em dinheiro/FGTS não cobre sai do bolso na assinatura.
   const complementoLote = Math.max(saldoLoteNaoCoberto - dinheiroEntrada - fgtsNaEntrada, 0);
+  // Sugestão para preencher o contrato: o banco financia 80% de cada parte (lote e obra). Quando o
+  // pagamento do lote passa de 80% do valor informado, o lote vai ao papel como pagamento ÷ 0,8 e a obra
+  // fica com o restante. Valor do imóvel e financiamento total não mudam; só a divisão entre as partes.
+  const loteContrato = Math.max(input.terreno, quitacaoLote / PERCENTUAL_FINANCIADO_PARTE);
+  const obraContrato = Math.max(valorOperacao - loteContrato, 0);
+  const redistribuicaoContrato = loteContrato > input.terreno + 0.005;
   const verbaContrato = Math.min(financiamentoConstrucao + fgtsNaEntrada + dinheiroEntrada, orcamentoObraContrato);
   const recursosUtilizaveis = verbaContrato;
 
@@ -375,7 +383,7 @@ function calcular(input: SimulationInput) {
     lucroConstrutorDesejado: null as number | null, excedenteNecessario: 0, construtorSemExcedente: false,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
     agioLote, agioNaEntrada, fgtsUtilizado: input.fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
-    limiteFinanciavelLote,
+    limiteFinanciavelLote, loteContrato, obraContrato, redistribuicaoContrato,
     quitacaoLote, saldoLoteNaoCoberto, complementoLote, orcamentoObraContrato,
     financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,
     desembolsoAntesContrato, desembolsoAssinatura, desembolsoDuranteObra, desembolsoProprio, maiorEncargoMensal,

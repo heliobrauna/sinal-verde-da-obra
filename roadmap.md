@@ -45,3 +45,4 @@
 - [x] Formar o preço de venda a partir do lucro desejado do construtor
 - [x] Calcular encargos de obra como a Caixa: lote desde a assinatura, TR, juros e seguros sobre a dívida liberada
 - [x] Quitar o lote pelo saldo devedor, limitado a 30% do contrato
+- [x] Sugerir valores de terreno e construção para o contrato quando o saldo do lote passa de 80%

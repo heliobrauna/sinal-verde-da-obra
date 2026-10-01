@@ -159,6 +159,18 @@ describe("projeção financeira", () => {
     expect(result.liberacoesMensais[0]?.encargo).toBe(80);
   });
 
+  it("sugere redistribuir lote e obra no contrato só quando o saldo passa de 80% do lote", () => {
+    const acima = calculate({ ...input, terreno: 150000, saldoDevedor: 135000 });
+    expect(acima.quitacaoLote).toBe(135000);
+    expect(acima.redistribuicaoContrato).toBe(true);
+    expect(acima.loteContrato).toBeCloseTo(135000 / 0.8);
+    expect(acima.obraContrato).toBeCloseTo(500000 - 135000 / 0.8);
+    const dentro = calculate({ ...input, terreno: 150000, saldoDevedor: 100000 });
+    expect(dentro.redistribuicaoContrato).toBe(false);
+    expect(dentro.loteContrato).toBe(150000);
+    expect(dentro.obraContrato).toBe(350000);
+  });
+
   it("pré-preenche PCI até 320 m² e sugere 18 meses acima dessa área", () => {
     expect(suggestedExecutionMonths(70)).toBe(6);
     expect(suggestedExecutionMonths(320)).toBe(13);

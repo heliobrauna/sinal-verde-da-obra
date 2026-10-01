@@ -87,6 +87,9 @@ type R = {
   mesVenda?: number;
   origemTerreno?: "investidor" | "construtor" | "compra";
   recebimentoConstrutorLote?: number;
+  loteContrato?: number;
+  obraContrato?: number;
+  redistribuicaoContrato?: boolean;
   lucroConstrutorDesejado?: number | null;
   corretagemLoteValor?: number;
   irGanhoLote?: number;
@@ -379,6 +382,21 @@ function Result() {
           />
         </div>
       </div>
+      {r.loteContrato !== undefined && hasValue(r.valorOperacao) && (
+        <section className="mt-8 rounded-lg border border-primary/30 bg-primary/5 p-5">
+          <h2 className="text-lg font-semibold">Sugestão para preencher o contrato</h2>
+          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+            <div><dt className="text-muted-foreground">Valor do terreno</dt><dd className="font-semibold">{BRL.format(r.loteContrato)}</dd></div>
+            <div><dt className="text-muted-foreground">Valor da construção</dt><dd className="font-semibold">{BRL.format(r.obraContrato ?? 0)}</dd></div>
+            <div><dt className="text-muted-foreground">Valor do imóvel</dt><dd className="font-semibold">{BRL.format(r.valorOperacao)}</dd></div>
+          </dl>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {r.redistribuicaoContrato
+              ? `O saldo do lote passa de 80% do valor do terreno. No contrato, o terreno entra como ${BRL.format(r.quitacaoLote ?? 0)} ÷ 0,8 para que os 80% do banco quitem a loteadora na assinatura, sem recurso próprio; a construção fica com o restante. O valor do imóvel e o financiamento total não mudam.`
+              : "O saldo do lote cabe nos 80% que o banco financia sobre o terreno; não é preciso redistribuir valores no contrato."}
+          </p>
+        </section>
+      )}
       <p className="mt-8 text-xs text-muted-foreground">Estimativas para decisão. Confirme valores com o banco, a prefeitura e o cartório.</p>
     </AppShell>
   );
