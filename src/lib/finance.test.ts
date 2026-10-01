@@ -4,7 +4,7 @@ import { registroEstimate } from "./emolumentos";
 
 const input: SimulationInput = {
   credito: 400000, terreno: 200000, saldoDevedor: 100000,
-  valorImovel: 500000, fgtsUtilizado: 20000, percentualFinanciavelLote: 80,
+  valorImovel: 500000, fgtsUtilizado: 20000,
   cub: 2500, maoDeObra: 1000, materiais: 1000, areaPlanejada: 120,
   extras: [], objetivo: "vender", lucro: 30000, corretagem: 5,
   prazo: 0, jurosAnuais: 10, stages: [], liberacoes: pciReleases(6),
@@ -33,8 +33,11 @@ describe("projeção financeira", () => {
     expect(result.agioNaEntrada).toBe(10000);
     expect(result.fgtsNaEntrada).toBe(20000);
     expect(result.dinheiroEntrada).toBe(70000);
-    expect(result.quitacaoLote).toBe(160000);
-    expect(result.saldoLoteNaoCoberto).toBe(30000);
+    // Limite de 30% de R$ 500 mil: o banco quita R$ 150 mil e R$ 40 mil saem da entrada em dinheiro.
+    expect(result.limiteFinanciavelLote).toBe(150000);
+    expect(result.quitacaoLote).toBe(150000);
+    expect(result.saldoLoteNaoCoberto).toBe(40000);
+    expect(result.complementoLote).toBe(0);
     expect(result.recursosUtilizaveis).toBe(300000);
     expect(result.desembolsoAssinatura).toBe(70000);
   });

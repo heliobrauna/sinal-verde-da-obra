@@ -44,3 +44,4 @@
 - [x] Contar o lote próprio pelo valor líquido de venda (corretagem e IR sobre o ganho)
 - [x] Formar o preço de venda a partir do lucro desejado do construtor
 - [x] Calcular encargos de obra como a Caixa: lote desde a assinatura, TR, juros e seguros sobre a dívida liberada
+- [x] Quitar o lote pelo saldo devedor, limitado a 30% do contrato

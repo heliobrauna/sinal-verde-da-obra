@@ -48,7 +48,6 @@ export type SimulationInput = {
   saldoDevedor: number;
   valorImovel: number;
   fgtsUtilizado: number;
-  percentualFinanciavelLote: number;
   cub: number;
   maoDeObra: number;
   materiais: number;
@@ -178,6 +177,9 @@ export function estimatedExpenses(
   ];
 }
 
+// Parte do contrato que pode quitar o lote.
+export const LIMITE_LOTE_CONTRATO = 0.3;
+
 // Imposto de renda sobre ganho de capital de pessoa física (sem fatores de redução).
 const IR_GANHO_CAPITAL = 0.15;
 
@@ -224,11 +226,10 @@ function calcular(input: SimulationInput) {
   const agioNaEntrada = Math.min(agioLote, entradaExigida);
   const fgtsNaEntrada = Math.min(Math.max(input.fgtsUtilizado, 0), entradaExigida - agioNaEntrada);
   const dinheiroEntrada = entradaExigida - agioNaEntrada - fgtsNaEntrada;
-  const percentualFinanciavelLote = Math.min(100, Math.max(0, input.percentualFinanciavelLote));
-  const limiteFinanciavelLote = input.terreno * percentualFinanciavelLote / 100;
+  // O banco quita o saldo do lote até 30% do valor do contrato (aceito sem laudo do lote).
+  const limiteFinanciavelLote = valorOperacao * LIMITE_LOTE_CONTRATO;
   const quitacaoLote = Math.min(credito, saldoDevedor, limiteFinanciavelLote);
   const saldoLoteNaoCoberto = Math.max(saldoDevedor - quitacaoLote, 0);
-  const avaliacaoMinimaLote = percentualFinanciavelLote > 0 ? saldoDevedor / (percentualFinanciavelLote / 100) : 0;
   const orcamentoObraContrato = Math.max(valorOperacao - input.terreno, 0);
   // Quando o ágio supera a entrada, o banco não libera para a obra mais do que o orçamento contratado.
   const financiamentoDisponivelObra = Math.max(credito - quitacaoLote, 0);
@@ -374,7 +375,7 @@ function calcular(input: SimulationInput) {
     lucroConstrutorDesejado: null as number | null, excedenteNecessario: 0, construtorSemExcedente: false,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
     agioLote, agioNaEntrada, fgtsUtilizado: input.fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
-    percentualFinanciavelLote, limiteFinanciavelLote, avaliacaoMinimaLote,
+    limiteFinanciavelLote,
     quitacaoLote, saldoLoteNaoCoberto, complementoLote, orcamentoObraContrato,
     financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,
     desembolsoAntesContrato, desembolsoAssinatura, desembolsoDuranteObra, desembolsoProprio, maiorEncargoMensal,

@@ -225,7 +225,6 @@ function Wizard() {
   const [cubLoading, setCubLoading] = useState(false);
   const [valorImovel, setValorImovel] = useState(0);
   const [fgtsUtilizado, setFgtsUtilizado] = useState(0);
-  const [percentualFinanciavelLote, setPercentualFinanciavelLote] = useState(80);
   const [jurosAnuais, setJurosAnuais] = useState(10);
   const [trMensal, setTrMensal] = useState(0);
   const [trFonte, setTrFonte] = useState("");
@@ -254,8 +253,8 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, valorImovel, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, cronograma, liberacoes, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, cronograma, liberacoes, participacaoInvestidor],
   );
   // ITBI e registro de compra só quando o lote muda de dono na operação.
   const transferenciaLote = origemTerreno !== "investidor" || (situacao === "financiado" && saldo > 0);
@@ -276,7 +275,6 @@ function Wizard() {
         saldoDevedor: situacao === "financiado" ? saldo : 0,
         valorImovel,
         fgtsUtilizado,
-        percentualFinanciavelLote,
         cub,
         maoDeObra,
         materiais,
@@ -300,7 +298,7 @@ function Wizard() {
         custoAquisicaoLote,
         lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null,
       }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, percentualFinanciavelLote, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -315,7 +313,7 @@ function Wizard() {
       setSavedCub(data.cub_valor_m2);
       if (saved.cubReferencia) setCubRef(saved.cubReferencia as CubReference);
        setValorImovel(saved.valorOperacao ?? data.credito_aprovado / ((saved as { percentualFinanciamento?: number }).percentualFinanciamento ?? 80) * 100); setFgtsUtilizado(saved.fgtsUtilizado ?? 0);
-       setPercentualFinanciavelLote(saved.percentualFinanciavelLote ?? 80);
+
        setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); if (saved.trMensal !== undefined) { setTrMensal(saved.trMensal); setTrFonte("valor salvo na simulação"); } setSeguroTarifaMensal(saved.seguroTarifaMensal ?? 0); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
        setAreaPlanejada(saved.areaPlanejada ?? saved.areaViavelMinima ?? saved.areaViavel ?? 0);
@@ -416,8 +414,8 @@ function Wizard() {
     if (corretagem < 0 || corretagem >= 100 || participacaoInvestidor < 0 || participacaoInvestidor > 100 || prazo < 0) {
       setErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
     }
-    if (valorImovel < credito || percentualFinanciavelLote <= 0 || percentualFinanciavelLote > 100 || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
-      setErro("Revise o valor do imóvel, o percentual financiável do lote e os dois cronogramas: cada cronograma deve somar 100%."); return;
+    if (valorImovel < credito || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
+      setErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
     const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
     if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
@@ -523,7 +521,6 @@ function Wizard() {
                   </select>
                 </div>}
                 {origemTerreno === "investidor" && situacao === "financiado" && field("Saldo devedor", saldo, setSaldo)}
-                 {(origemTerreno !== "investidor" || situacao === "financiado") && field("Percentual máximo financiável do lote (%)", percentualFinanciavelLote, setPercentualFinanciavelLote, false)}
                 {field("Renda declarada", renda, setRenda)}
                 <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-3">
                   <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-3">Simulador da Caixa</p>
@@ -551,7 +548,7 @@ function Wizard() {
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">Orçamento da obra no contrato (imóvel − terreno): <strong className="text-foreground">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
                   {baseResult.financiamentoExcedente > 0 && <p className="mt-3 text-xs text-secondary">O ágio cobre mais que a entrada: o banco tende a liberar no máximo {BRL.format(baseResult.financiamentoConstrucao)} para a obra ({BRL.format(baseResult.financiamentoExcedente)} a menos que o valor informado).</p>}
-                  {(origemTerreno !== "investidor" || situacao === "financiado") && <p className="mt-3 text-xs text-muted-foreground">{origemTerreno === "investidor" ? "Quitação do lote pelo banco" : "Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Avaliação mínima de referência: {BRL.format(baseResult.avaliacaoMinimaLote)}.</p>}
+                  {(origemTerreno !== "investidor" || situacao === "financiado") && <p className="mt-3 text-xs text-muted-foreground">{origemTerreno === "investidor" ? "Quitação do lote pelo banco" : "Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Limite para o lote: 30% do contrato ({BRL.format(baseResult.limiteFinanciavelLote)}).{baseResult.saldoLoteNaoCoberto > 0 && " O excedente sai da entrada em dinheiro."}</p>}
                 </div>
               </div>
             )}
