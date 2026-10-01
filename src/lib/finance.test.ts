@@ -138,7 +138,7 @@ describe("projeção financeira", () => {
     expect(registroEstimate("CE", 5000, false).valor).toBeCloseTo(600.22, 1);
     expect(valor(despesas(true), "registro-compra")).toBeCloseTo(valor(despesas(false), "registro-compra") / 2, 2);
     expect(valor(despesas(true), "alienacao")).toBeCloseTo(valor(despesas(false), "alienacao") / 2, 2);
-    expect(registroEstimate("SP", 100000, false).oficial).toBe(false);
+    expect(registroEstimate("XX", 100000, false).oficial).toBe(false);
   });
 
   it("cobra encargos de obra sobre o lote quitado na assinatura, somando TR, juros e seguros", () => {

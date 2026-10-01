@@ -148,7 +148,7 @@ export function estimatedExpenses(
   const remuneracaoEstimada = cub * (areaAte100 * 0.04 + areaAte200 * 0.08 + areaAte300 * 0.14 + areaAcima300 * 0.2);
   const inssEstimado = remuneracaoEstimada * 0.368;
   const registroCompra = registroEstimate(estado, transferenciaLote ? terreno : 0, primeiroImovelSfh);
-  const registroAlienacao = registroEstimate(estado, credito, primeiroImovelSfh);
+  const registroAlienacao = registroEstimate(estado, credito, primeiroImovelSfh, "garantia");
   const descontoSfh = primeiroImovelSfh ? " Inclui 50% de desconto do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH)." : "";
   const registroObservacao = (registro: typeof registroCompra, base: string) =>
     (registro.oficial ? `Tabela oficial da UF por faixa de ${base}; não inclui prenotação e taxas adicionais.` : `Estimativa sobre ${base}; consulte os emolumentos da UF.`) + descontoSfh;
