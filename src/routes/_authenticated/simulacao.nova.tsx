@@ -92,6 +92,7 @@ const ufs = [
   "SE",
   "TO",
 ];
+const STEP_LABELS = ["Partida", "Orçamento", "Viabilidade", "Cronograma"];
 // Etapas: 1 ponto de partida, 2 orçamento, 3 viabilidade, 4 cronograma (com a área planejada definida).
 const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a obra"] as const;
 const ORIGEM_NOTA: Record<OrigemTerreno, string> = {
@@ -388,23 +389,25 @@ function Wizard() {
       setLiberacoes(pciReleases(suggested));
     }
   }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
-  function next() {
-    if (step === 1 && (!credito || !renda || !valorImovel)) {
-      setErro("Informe a renda, o valor do imóvel e o valor do financiamento para continuar.");
-      return;
-    }
-    if (step === 1 && valorImovel < credito) {
-      setErro("O valor do imóvel não pode ser menor que o valor do financiamento.");
-      return;
-    }
-    if (step === 2 && custoReal <= 0) {
-      setErro("Informe mão de obra e materiais por m² para calcular a área.");
-      return;
+  function stepError(n: number) {
+    if (n === 1 && (!credito || !renda || !valorImovel)) return "Informe a renda, o valor do imóvel e o valor do financiamento para continuar.";
+    if (n === 1 && valorImovel < credito) return "O valor do imóvel não pode ser menor que o valor do financiamento.";
+    if (n === 2 && custoReal <= 0) return "Informe mão de obra e materiais por m² para calcular a área.";
+    return "";
+  }
+  // Voltar é livre; para avançar, as etapas anteriores ao destino precisam estar completas.
+  function goTo(target: number) {
+    for (let n = 1; n < target; n++) {
+      const message = stepError(n);
+      if (message) { setErro(message); setStep(n); return; }
     }
     setErro("");
     // A viabilidade (etapa 3) começa com a área viável mínima; o cronograma fica por último.
-    if (step === 2 && areaPlanejada <= 0) setAreaPlanejada(result.areaViavelMinima);
-    setStep(Math.min(4, step + 1));
+    if (target >= 3 && areaPlanejada <= 0) setAreaPlanejada(result.areaViavelMinima);
+    setStep(target);
+  }
+  function next() {
+    goTo(Math.min(4, step + 1));
   }
   async function save() {
     const { data: u } = await supabase.auth.getUser();
@@ -480,11 +483,17 @@ function Wizard() {
           </h1>
           <span className="shrink-0 text-sm text-muted-foreground">{step} de 4</span>
         </div>
-        <div className="mt-6 grid grid-cols-4 gap-2">
-          {[1, 2, 3, 4].map((n) => (
-            <div key={n} className={`h-1 rounded-full ${n <= step ? "bg-primary" : "bg-muted"}`} />
-          ))}
-        </div>
+        <nav className="mt-6 grid grid-cols-4 gap-2" aria-label="Etapas da simulação">
+          {STEP_LABELS.map((label, index) => {
+            const n = index + 1;
+            return (
+              <button key={label} type="button" onClick={() => goTo(n)} aria-current={n === step ? "step" : undefined} className="group text-left">
+                <span className={`block h-1 rounded-full transition-colors ${n <= step ? "bg-primary" : "bg-muted group-hover:bg-muted-foreground/40"}`} />
+                <span className={`mt-2 block truncate text-[11px] sm:text-xs ${n === step ? "font-semibold text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
         <Card className="mt-8">
           <CardContent className="p-6 md:p-8">
             {step === 1 && (
