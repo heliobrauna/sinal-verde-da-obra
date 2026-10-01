@@ -176,7 +176,7 @@ function Result() {
       ? { label: "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
       : { label: "Verba da obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
     vender && hasValue(r.custoComTerreno)
-      ? { label: "Custo com terreno", value: BRL.format(r.custoComTerreno), detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined }
+      ? { label: "Custo total (terreno + obra)", value: BRL.format(r.custoComTerreno), detail: `Terreno ${BRL.format(item.terreno_valor)} + obra e despesas ${BRL.format(r.custoComTerreno - item.terreno_valor)}` }
       : { label: "Custo total", value: hasValue(r.custoTotal) ? BRL.format(r.custoTotal) : undefined, detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined },
     vender
       ? { label: r.lucroConstrutorDesejado != null ? "Lucro total na venda" : "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, detail: hasValue(r.lucroConstrutorDesejado ?? undefined) ? `Construtor: ${BRL.format(r.lucroConstrutorDesejado ?? 0)}` : undefined, tone: "text-primary" }
@@ -345,7 +345,7 @@ function Result() {
                   ]
                 : [[hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra] as Row]),
             ]}
-            total={vender && hasValue(r.custoComTerreno) ? ["Custo com terreno", r.custoComTerreno] : ["Custo total", r.custoTotal]}
+            total={vender && hasValue(r.custoComTerreno) ? ["Custo total (terreno + obra)", r.custoComTerreno] : ["Custo total", r.custoTotal]}
           />
           {r.primeiroImovelSfh && <p className="text-xs text-muted-foreground">Registros com desconto de 50% do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH).</p>}
         </div>

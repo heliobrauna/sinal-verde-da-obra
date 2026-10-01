@@ -92,6 +92,7 @@ const ufs = [
   "SE",
   "TO",
 ];
+// Etapas: 1 ponto de partida, 2 orçamento, 3 viabilidade, 4 cronograma (com a área planejada definida).
 const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a obra"] as const;
 const ORIGEM_NOTA: Record<OrigemTerreno, string> = {
   investidor: "O ágio do lote compõe a entrada e conta como capital do investidor, com retorno preferencial. Lote quitado e registrado no nome dele não paga ITBI nem registro de compra.",
@@ -378,13 +379,15 @@ function Wizard() {
     };
   }, [estado, padrao, fetchCub]);
   useEffect(() => {
-    if (loadingEdit || prazoEditado || baseResult.areaViavelMinima <= 0) return;
-    const suggested = suggestedExecutionMonths(baseResult.areaViavelMinima);
+    // O prazo sugerido acompanha a área planejada; antes de defini-la, usa a área viável.
+    const areaReferencia = areaPlanejada > 0 ? areaPlanejada : baseResult.areaViavelMinima;
+    if (loadingEdit || prazoEditado || areaReferencia <= 0) return;
+    const suggested = suggestedExecutionMonths(areaReferencia);
     if (suggested !== prazoExecucao) {
       setPrazoExecucao(suggested);
       setLiberacoes(pciReleases(suggested));
     }
-  }, [baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
+  }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   function next() {
     if (step === 1 && (!credito || !renda || !valorImovel)) {
       setErro("Informe a renda, o valor do imóvel e o valor do financiamento para continuar.");
@@ -398,14 +401,9 @@ function Wizard() {
       setErro("Informe mão de obra e materiais por m² para calcular a área.");
       return;
     }
-    const totalEtapas = cronograma.reduce((sum, item) => sum + item.percentual, 0);
-    const totalLiberacoes = liberacoes.reduce((sum, item) => sum + item.percentual, 0);
-    if (step === 3 && (Math.abs(totalEtapas - 100) > 0.01 || Math.abs(totalLiberacoes - 100) > 0.01)) {
-      setErro("Os percentuais das etapas e das liberações mensais precisam somar 100%.");
-      return;
-    }
     setErro("");
-    if (step === 3 && areaPlanejada <= 0) setAreaPlanejada(result.areaViavelMinima);
+    // A viabilidade (etapa 3) começa com a área viável mínima; o cronograma fica por último.
+    if (step === 2 && areaPlanejada <= 0) setAreaPlanejada(result.areaViavelMinima);
     setStep(Math.min(4, step + 1));
   }
   async function save() {
@@ -475,8 +473,8 @@ function Wizard() {
               [
                 "Ponto de partida",
                 "Orçamento sem surpresa",
-                "Cronograma do banco",
                 "Sinal de viabilidade",
+                "Cronograma do banco",
               ][step - 1]
             }
           </h1>
@@ -678,7 +676,7 @@ function Wizard() {
                 </div>
               </div>
             )}
-            {step === 3 && (
+            {step === 4 && (
               <div className="space-y-8">
                 <div>
                 <p className="mb-6 text-sm text-muted-foreground">
@@ -725,7 +723,7 @@ function Wizard() {
                 </div>
               </div>
             )}
-            {step === 4 && (
+            {step === 3 && (
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <Label>Objetivo</Label>
@@ -846,7 +844,7 @@ function LivePanel({ result, objetivo }: { result: ReturnType<typeof calculate>;
       ? { label: "Venda estimada", value: semCusto ? "—" : BRL.format(result.valorVenda), tone: "" }
       : { label: "Verba da obra", value: BRL.format(result.recursosUtilizaveis), tone: "" },
     vender
-      ? { label: "Custo com terreno", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" }
+      ? { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" }
       : { label: "Custo total", value: semCusto ? "—" : BRL.format(result.custoTotal), tone: "" },
     { label: "Dinheiro do cliente", value: BRL.format(result.desembolsoProprio), tone: "text-secondary" },
     ...(!semCusto && result.aporteParaAreaPlanejada > 0
