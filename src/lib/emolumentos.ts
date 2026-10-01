@@ -95,7 +95,7 @@ function mgTotal(base: number) {
   return 4844.02 + 3289.9 + (faixas - 1) * 2193.27 + 4673.83;
 }
 
-// TJRS — Registro de Imóveis, item 1 (somente emolumentos).
+// TJRS — Registro de Imóveis, item 1 (emolumentos; selo digital e processamento somados no total).
 const RS: Faixa[] = [
   [2481.8, 226.1], [4963.4, 230.8], [7445.2, 241], [9927, 251.1], [12408.7, 260.9], [14890.1, 271],
   [17371.5, 281.3], [19853.7, 291.3], [22335.1, 300.7], [24816.8, 310.4], [37225.2, 340.9], [49633.8, 390.8],
@@ -153,6 +153,13 @@ const MS: Faixa[] = [
   [2000000, 6172.36], [3000000, 6649.19], [4000000, 7126.02], [5000000, 7602.83], [7000000, 8079.66],
   [9000000, 8556.47], [Infinity, 9033.3],
 ];
+
+function rsTotal(base: number) {
+  // Selo digital (CNNR art. 41, § 1º, Provimento nº 70/2024-CGJ), pela faixa do valor do ato,
+  // e processamento eletrônico de dados (item 8), R$ 7,30 por ato.
+  const selo = base <= 1000 ? 18.8 : base <= 50000 ? 37.8 : base <= 150000 ? 56.5 : base <= 300000 ? 76.4 : 94.7;
+  return porFaixa(RS, base) + selo + 7.3;
+}
 
 function mtEmolumento(base: number) {
   // TJMT — Tabela C, item 27: R$ 115,65 até R$ 2.676,76; depois R$ 29,50 a cada R$ 1.338,53, até R$ 6.948,45.
@@ -316,7 +323,7 @@ function peTsnr(base: number, emolumento: number) {
   return Math.min(Math.max(base * taxa, 6.59), 3280.79, emolumento);
 }
 
-// TJPR — Tabela XIII, item XIII.b (somente emolumentos; tabela não progressiva).
+// TJPR — Tabela XIII, item XIII.b (emolumentos; tabela não progressiva). FADEP, FUNREJUS e selo somados no total.
 const PR: Faixa[] = [
   [15512, 349.02], [18282, 411.34], [21052, 473.67], [23822, 535.99], [26592, 598.32], [29362, 660.64],
   [32132, 722.97], [34902, 785.29], [37672, 847.62], [40442, 909.94], [43212, 972.27], [45982, 1011.6],
@@ -363,6 +370,15 @@ const AL: Faixa[] = [
   [600000, 7708.82], [750000, 8220.38], [1000000, 8731.94], [1500000, 9499.98], [2000000, 10266.62],
   [4000000, 11289.74], [6000000, 12312.86], [8000000, 13335.98], [10000000, 14359.1], [Infinity, 15382.22],
 ];
+
+// FADEP (5% do emolumento) e selo FUNARPEN (R$ 4,67, valor praticado pelos registros de imóveis).
+// FUNREJUS (Lei 12.216/98, art. 3º, VII): 0,2% do valor do título, limitado a R$ 5.344,68, na compra;
+// na garantia sem transmissão, 25% do emolumento.
+function prTotal(base: number, ato: AtoRegistro) {
+  const emolumento = porFaixa(PR, base);
+  const funrejus = ato === "compra" ? Math.min(base * 0.002, 5344.68) : emolumento * 0.25;
+  return emolumento * 1.05 + funrejus + 4.67;
+}
 
 function seEmolumento(base: number) {
   // Lei 8.639/2019 (Anexo IV, item 2), com a regra de excedente da Lei 9.840/2025.
@@ -414,9 +430,10 @@ const TABLES: Partial<Record<string, UfTable>> = {
   MG: { fonte: "TJMG — Tabela 4 2026, item 5.e", fonteUrl: RI_DIGITAL_URL, total: mgTotal },
   MS: { fonte: "TJMS — Tabela III.C 2026", fonteUrl: RI_DIGITAL_URL, total: fixa(MS) },
   MT: {
-    fonte: "TJMT — Provimento nº 80/2025, Tabela C, item 27 (somente emolumentos)",
+    // FUNAJURIS (20%) e FUNAMP já integram o valor da tabela; a tabela F (AMMP, AMAM e OAB) soma R$ 3,00 por ato.
+    fonte: "TJMT — Provimento nº 80/2025, Tabela C, item 27 (+ tabela F da Lei 7.550/2001)",
     fonteUrl: RI_DIGITAL_URL,
-    total: mtEmolumento,
+    total: (base) => mtEmolumento(base) + 3,
   },
   PA: { fonte: "TJPA — Tabela III 2026, item III", fonteUrl: RI_DIGITAL_URL, total: fixa(PA) },
   PB: {
@@ -434,9 +451,10 @@ const TABLES: Partial<Record<string, UfTable>> = {
   },
   PI: { fonte: "TJPI — Tabela IV 2026, item 45", fonteUrl: RI_DIGITAL_URL, total: fixa(PI) },
   PR: {
-    fonte: "TJPR — Lei 21.869/2023, Tabela XIII, item XIII.b (somente emolumentos)",
+    fonte: "TJPR — Lei 21.869/2023, Tabela XIII (+ FADEP 5%, FUNREJUS e selo estimado)",
     fonteUrl: "https://extrajudicial.tjpr.jus.br/emolumentos",
-    total: fixa(PR),
+    total: (base) => prTotal(base, "compra"),
+    garantia: (base) => prTotal(base, "garantia"),
   },
   RJ: {
     fonte: "TJRJ — Portaria CGJ nº 516/2026, Tabela 05.1 (+48% de acréscimos e selo)",
@@ -452,10 +470,11 @@ const TABLES: Partial<Record<string, UfTable>> = {
     fonteUrl: "https://atos.tjrr.jus.br/atos/detalhar/8221",
     total: fixa(RR),
   },
-  RS: { fonte: "TJRS — Tabela 2026, Registro de Imóveis, item 1 (somente emolumentos)", fonteUrl: RI_DIGITAL_URL, total: fixa(RS) },
+  RS: { fonte: "TJRS — Tabela 2026, item 1 (+ selo digital e processamento)", fonteUrl: RI_DIGITAL_URL, total: rsTotal },
   SC: { fonte: "TJSC — Tabela III 2026, item 2.2", fonteUrl: RI_DIGITAL_URL, total: scTotal },
   SE: {
-    fonte: "TJSE — Lei 8.639/2019 e Lei 9.840/2025, Anexo IV, item 2 (somente emolumentos)",
+    // Lei 8.639/2019, art. 2º: guia única do TJSE; fundos e selo já saem do valor da tabela.
+    fonte: "TJSE — Lei 8.639/2019 e Lei 9.840/2025, Anexo IV, item 2 (guia única do TJ)",
     fonteUrl: "https://www.tjse.jus.br/portal/consultas/valores-das-custas-processuais",
     total: seEmolumento,
   },

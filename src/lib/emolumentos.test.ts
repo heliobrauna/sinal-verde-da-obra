@@ -22,19 +22,19 @@ describe("emolumentos de registro por UF", () => {
     ["MA", 5590.81],
     ["MG", 4903.53],
     ["MS", 4753.33],
-    ["MT", 6694.15], // 115,65 + 223 × 29,50
+    ["MT", 6697.15], // 115,65 + 223 × 29,50 + tabela F
     ["PA", 3956],
     ["PB", 2701.98], // 2.466,72 + FARPEN 217,26 + selo 18,00
     ["PE", 5473.28], // 4.723,28 + TSNR de 0,25%
     ["PI", 7947.9],
-    ["PR", 1194.42],
+    ["PR", 1858.81], // 1.194,42 + FADEP 5% + FUNREJUS 0,2% + selo
     ["RJ", 4174.18], // 2.818,18 × 1,48 + selo
     ["RN", 4494.64],
     ["RO", 3181.54],
     ["RR", 3014.52],
-    ["RS", 1512.3],
+    ["RS", 1596], // 1.512,30 + selo 76,40 + processamento 7,30
     ["SC", 2693.37], // 2.570,64 + 2 × R$ 50 com FRJ
-    ["SE", 3296.76], // 708,46 + 55 × 47,06
+    ["SE", 3296.76], // 708,46 + 55 × 47,06 (guia única)
     ["SP", 2723.02],
     ["TO", 3675.14], // 3.077,18 + 4 × 149,49
   ])("%s", (uf, esperado) => {
@@ -45,6 +45,10 @@ describe("emolumentos de registro por UF", () => {
     expect(registroEstimate("AP", 300000, false, "garantia").valor).toBeCloseTo(280.47, 2);
     expect(registroEstimate("TO", 300000, false, "garantia").valor).toBeCloseTo(2345.15, 2);
     expect(registroEstimate("SP", 300000, false, "garantia").valor).toBeCloseTo(2723.02, 2);
+    // PR: na garantia, FUNREJUS de 25% do emolumento em vez de 0,2% do valor.
+    expect(registroEstimate("PR", 300000, false, "garantia").valor).toBeCloseTo(1194.42 * 1.3 + 4.67, 2);
+    // FUNREJUS limitado a R$ 5.344,68.
+    expect(registroEstimate("PR", 5000000, false).valor).toBeCloseTo(1194.42 * 1.05 + 5344.68 + 4.67, 2);
   });
 
   it("aplica as regras acima da última faixa e os tetos", () => {
@@ -52,7 +56,7 @@ describe("emolumentos de registro por UF", () => {
     expect(registroEstimate("MG", 3500000, false).valor).toBeCloseTo(4844.02 + 3289.9 + 4673.83, 2);
     // RJ: R$ 600 mil = uma faixa de R$ 140.427,98 acima de R$ 561.712,00.
     expect(registroEstimate("RJ", 600000, false).valor).toBeCloseTo((2818.18 + 252.43) * 1.48 + 3.27, 2);
-    expect(registroEstimate("MT", 5000000, false).valor).toBeCloseTo(6948.45, 2);
+    expect(registroEstimate("MT", 5000000, false).valor).toBeCloseTo(6948.45 + 3, 2);
     expect(registroEstimate("SE", 5000000, false).valor).toBeCloseTo(11264.88, 2);
     expect(registroEstimate("PB", 5000000, false).valor).toBeCloseTo(8872.5 + 155.59 + 8872.5 * 0.025 + 18, 2);
   });
