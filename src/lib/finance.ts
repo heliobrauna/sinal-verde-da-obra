@@ -226,7 +226,9 @@ function calcular(input: SimulationInput) {
   const agioLote = Math.max(input.terreno - saldoDevedor, 0);
   // Ágio e FGTS compõem a entrada e reduzem o dinheiro necessário; nenhum dos dois vira caixa extra.
   const agioNaEntrada = Math.min(agioLote, entradaExigida);
-  const fgtsNaEntrada = Math.min(Math.max(input.fgtsUtilizado, 0), entradaExigida - agioNaEntrada);
+  // FGTS é para a moradia própria do titular: obra para vender não usa FGTS.
+  const fgtsUtilizado = input.objetivo === "vender" ? 0 : Math.max(input.fgtsUtilizado, 0);
+  const fgtsNaEntrada = Math.min(fgtsUtilizado, entradaExigida - agioNaEntrada);
   const dinheiroEntrada = entradaExigida - agioNaEntrada - fgtsNaEntrada;
   // O banco quita o saldo do lote até 30% do valor do contrato (aceito sem laudo do lote).
   const limiteFinanciavelLote = valorOperacao * LIMITE_LOTE_CONTRATO;
@@ -387,7 +389,7 @@ function calcular(input: SimulationInput) {
     corretagemLoteValor, ganhoCapitalLote, irGanhoLote,
     lucroConstrutorDesejado: null as number | null, excedenteNecessario: 0, construtorSemExcedente: false,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
-    agioLote, agioNaEntrada, fgtsUtilizado: input.fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
+    agioLote, agioNaEntrada, fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
     limiteFinanciavelLote, loteContrato, obraContrato, redistribuicaoContrato,
     quitacaoLote, saldoLoteNaoCoberto, complementoLote, orcamentoObraContrato,
     financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,

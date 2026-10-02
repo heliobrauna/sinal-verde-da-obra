@@ -29,7 +29,7 @@ describe("projeção financeira", () => {
   });
 
   it("usa FGTS e dinheiro só para completar a entrada que o ágio não cobre", () => {
-    const result = calculate({ ...input, saldoDevedor: 190000 });
+    const result = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 190000 });
     expect(result.agioNaEntrada).toBe(10000);
     expect(result.fgtsNaEntrada).toBe(20000);
     expect(result.dinheiroEntrada).toBe(70000);
@@ -86,6 +86,15 @@ describe("projeção financeira", () => {
     expect(misto.capitalGiro).toBeCloseTo((misto.custoConstrucao + misto.extrasTotal) * 0.1 - 30000);
   });
 
+  it("não usa FGTS em obra para vender", () => {
+    const venda = calculate({ ...input, saldoDevedor: 150000, fgtsUtilizado: 50000 });
+    expect(venda.fgtsUtilizado).toBe(0);
+    expect(venda.fgtsNaEntrada).toBe(0);
+    expect(venda.dinheiroEntrada).toBe(venda.entradaExigida - venda.agioNaEntrada);
+    const morar = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 150000, fgtsUtilizado: 50000 });
+    expect(morar.fgtsNaEntrada).toBe(50000);
+  });
+
   it("data o capital do investidor e divide o lucro em cascata", () => {
     const result = calculate(input);
     // Patrimônio do lote + despesas pré-obra + 10% da obra + juros de obra.
@@ -108,8 +117,9 @@ describe("projeção financeira", () => {
     const result = calculate({ ...input, origemTerreno: "compra" });
     expect(result.agioLote).toBe(0);
     expect(result.patrimonioTerreno).toBe(0);
-    expect(result.fgtsNaEntrada).toBe(20000);
-    expect(result.dinheiroEntrada).toBe(80000);
+    // Venda não usa FGTS: a entrada inteira vem de dinheiro.
+    expect(result.fgtsNaEntrada).toBe(0);
+    expect(result.dinheiroEntrada).toBe(100000);
     const sem = estimatedExpenses(100000, 400000, 0, 0, 0, 2500, 100, "SP", false, false);
     expect(sem.find((item) => item.id === "itbi")?.valor).toBe(0);
     expect(sem.find((item) => item.id === "registro-compra")?.valor).toBe(0);

@@ -97,8 +97,8 @@ const STEP_LABELS = ["Partida", "Orçamento", "Viabilidade", "Cronograma"];
 const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a obra"] as const;
 const ORIGEM_NOTA: Record<OrigemTerreno, string> = {
   investidor: "O ágio do lote compõe a entrada e conta como capital do investidor, com retorno preferencial. Lote quitado e registrado no nome dele não paga ITBI nem registro de compra.",
-  construtor: "O construtor vende o lote ao investidor: há ITBI e registro, e o ágio não serve de entrada (FGTS ou dinheiro). O construtor recebe o preço do lote na assinatura e pode usá-lo para iniciar a obra.",
-  compra: "O lote é comprado de terceiro na operação: há ITBI e registro, não existe ágio e a entrada precisa vir de FGTS ou dinheiro.",
+  construtor: "O construtor vende o lote ao investidor: há ITBI e registro, e o ágio não serve de entrada: ela vem de dinheiro (ou de FGTS, só ao construir para morar). O construtor recebe o preço do lote na assinatura e pode usá-lo para iniciar a obra.",
+  compra: "O lote é comprado de terceiro na operação: há ITBI e registro, não existe ágio e a entrada precisa vir de dinheiro (ou de FGTS, só ao construir para morar).",
 };
 const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const HELP = {
@@ -538,7 +538,11 @@ function Wizard() {
                   </div>
                   {field("Valor do financiamento", credito, setCredito, true, HELP.financiamento)}
                 </div>
-                {field("FGTS disponível para a entrada", fgtsUtilizado, setFgtsUtilizado)}
+                {objetivo === "vender" ? (
+                  <p className="self-end rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">FGTS não é usado em obra para venda: ele se destina à moradia própria do titular, e usá-lo aqui comprometeria o saldo para a casa dele no futuro. A entrada é composta pelo ágio do terreno e por dinheiro.</p>
+                ) : (
+                  field("FGTS disponível para a entrada", fgtsUtilizado, setFgtsUtilizado)
+                )}
                 <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm md:col-span-2" htmlFor="primeiro-imovel-sfh">
                   <Checkbox id="primeiro-imovel-sfh" className="mt-0.5" checked={primeiroImovelSfh} onCheckedChange={(checked) => setPrimeiroImovelSfh(checked === true)} />
                   <span>
@@ -550,7 +554,7 @@ function Wizard() {
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Como você comprova a entrada</p>
                   <div className="mt-2 grid gap-3 sm:grid-cols-3">
                     <p><span className="text-muted-foreground">Ágio do lote</span><strong className="mt-1 block">{BRL.format(baseResult.agioNaEntrada)}</strong></p>
-                    <p><span className="text-muted-foreground">FGTS</span><strong className="mt-1 block">{BRL.format(baseResult.fgtsNaEntrada)}</strong></p>
+                    {objetivo !== "vender" && <p><span className="text-muted-foreground">FGTS</span><strong className="mt-1 block">{BRL.format(baseResult.fgtsNaEntrada)}</strong></p>}
                     <p><span className="text-muted-foreground">Dinheiro necessário</span><strong className={`mt-1 block ${baseResult.dinheiroEntrada > 0 ? "text-secondary" : "text-primary"}`}>{BRL.format(baseResult.dinheiroEntrada)}</strong></p>
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">Orçamento da obra no contrato (imóvel − terreno): <strong className="text-foreground">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
@@ -743,7 +747,11 @@ function Wizard() {
                         key={x}
                         variant={objetivo === x ? "default" : "outline"}
                         className="h-auto min-h-10 whitespace-normal py-2"
-                        onClick={() => setObjetivo(x)}
+                        onClick={() => {
+                          setObjetivo(x);
+                          // FGTS só vale para morar; ao trocar para venda, o campo é zerado.
+                          if (x === "vender") setFgtsUtilizado(0);
+                        }}
                       >
                         {x === "morar" ? "Construir para morar" : "Construir para vender"}
                       </Button>
