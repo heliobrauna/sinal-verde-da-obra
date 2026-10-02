@@ -852,9 +852,7 @@ function LivePanel({ result, objetivo }: { result: ReturnType<typeof calculate>;
     vender
       ? { label: "Venda estimada", value: semCusto ? "—" : BRL.format(result.valorVenda), tone: "" }
       : { label: "Verba da obra", value: BRL.format(result.recursosUtilizaveis), tone: "" },
-    vender
-      ? { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" }
-      : { label: "Custo total", value: semCusto ? "—" : BRL.format(result.custoTotal), tone: "" },
+    { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" },
     { label: "Dinheiro do cliente", value: BRL.format(result.desembolsoProprio), tone: "text-secondary" },
     ...(!semCusto && result.aporteParaAreaPlanejada > 0
       ? [{ label: "Aporte para a área", value: BRL.format(result.aporteParaAreaPlanejada), tone: "text-destructive" }]

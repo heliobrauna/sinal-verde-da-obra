@@ -48,3 +48,4 @@
 - [x] Sugerir valores de terreno e construção para o contrato quando o saldo do lote passa de 80%
 - [x] Levar o cronograma do banco para a última etapa, com prazo sugerido pela área planejada
 - [x] Navegar entre as etapas pelo indicador, validando as etapas anteriores ao avançar
+- [x] Incluir o terreno no custo total também para morar e simplificar o relatório como proposta ao cliente

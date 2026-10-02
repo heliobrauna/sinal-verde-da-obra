@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -138,6 +138,17 @@ function Rows({ title, rows, total }: { title: string; rows: Row[]; total?: Row 
   );
 }
 
+// Na proposta para morar, os números do construtor ficam recolhidos para o cliente ler só o essencial.
+function Detalhes({ recolher, children }: { recolher: boolean; children: ReactNode }) {
+  if (!recolher) return <div className="mt-8">{children}</div>;
+  return (
+    <details className="mt-8 rounded-lg border p-4 md:p-5">
+      <summary className="cursor-pointer select-none text-sm font-semibold text-primary">Detalhes para o construtor: contrato, custos, cronograma e liberações</summary>
+      <div className="mt-6">{children}</div>
+    </details>
+  );
+}
+
 function Result() {
   const { id } = Route.useParams();
   const nav = useNavigate();
@@ -170,18 +181,38 @@ function Result() {
   const cascata = vender && (r.aportesInvestidor?.length ?? 0) > 0;
   const investidor = cascata || (r.participacaoInvestidor ?? 0) > 0;
 
-  const metrics = [
+  // O terreno compõe o custo nos dois modos; registros antigos não guardavam o valor com terreno.
+  const custoComTerreno = r.custoComTerreno ?? (hasValue(r.custoTotal) ? r.custoTotal + item.terreno_valor : undefined);
+  const custoDetalhe = hasValue(custoComTerreno) ? `Terreno ${BRL.format(item.terreno_valor)} + obra e despesas ${BRL.format(custoComTerreno - item.terreno_valor)}` : undefined;
+  // Proposta para quem vai morar: o que o banco libera, FGTS, terreno e o bolso do cliente somam o custo total;
+  // a verba do banco que sobra aparece como desconto para a soma fechar.
+  const sobra = Math.max(r.saldoRecursos ?? 0, 0);
+  const proposta = !vender && hasValue(custoComTerreno) && r.desembolsoProprio !== undefined && r.financiamentoConstrucao !== undefined;
+  const pagamento: Row[] = [
+    ["Financiamento do banco", (r.quitacaoLote ?? 0) + (r.financiamentoConstrucao ?? 0)],
+    ["FGTS", r.fgtsNaEntrada],
+    ["Terreno que já é seu (ágio)", r.agioNaEntrada],
+    ["Dinheiro do seu bolso", r.desembolsoProprio],
+    ["Sobra da verba do banco (não gasta)", -sobra],
+  ];
+
+  const metrics = proposta
+    ? [
+        { label: "Casa que cabe no orçamento", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
+        { label: "Custo total do imóvel (terreno + obra)", value: BRL.format(custoComTerreno ?? 0), detail: custoDetalhe },
+        { label: "Dinheiro do seu bolso", value: BRL.format(r.desembolsoProprio ?? 0), detail: "Além do financiamento, do FGTS e do terreno", tone: "text-secondary" },
+      ]
+    : [
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
     vender
       ? { label: "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
       : { label: "Verba da obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
-    vender && hasValue(r.custoComTerreno)
-      ? { label: "Custo total (terreno + obra)", value: BRL.format(r.custoComTerreno), detail: `Terreno ${BRL.format(item.terreno_valor)} + obra e despesas ${BRL.format(r.custoComTerreno - item.terreno_valor)}` }
-      : { label: "Custo total", value: hasValue(r.custoTotal) ? BRL.format(r.custoTotal) : undefined, detail: hasValue(r.custoM2) ? `${BRL.format(r.custoM2)}/m²` : undefined },
+    { label: "Custo total (terreno + obra)", value: hasValue(custoComTerreno) ? BRL.format(custoComTerreno) : undefined, detail: custoDetalhe },
     vender
       ? { label: r.lucroConstrutorDesejado != null ? "Lucro total na venda" : "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, detail: hasValue(r.lucroConstrutorDesejado ?? undefined) ? `Construtor: ${BRL.format(r.lucroConstrutorDesejado ?? 0)}` : undefined, tone: "text-primary" }
       : { label: "Dinheiro do cliente", value: hasValue(r.desembolsoProprio) ? BRL.format(r.desembolsoProprio) : undefined, tone: "text-secondary" },
-  ].filter((metric) => metric.value !== undefined);
+  ];
+  const visibleMetrics = metrics.filter((metric) => metric.value !== undefined);
 
   return (
     <AppShell>
@@ -228,9 +259,9 @@ function Result() {
         )}
       </div>
 
-      <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {metrics.map((metric) => (
-          <Card key={metric.label} className={metric.label === "Área viável" ? "border-primary/40" : ""}>
+      <section className={`mt-6 grid gap-3 ${proposta ? "sm:grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}>
+        {visibleMetrics.map((metric, i) => (
+          <Card key={metric.label} className={i === 0 ? "border-primary/40" : ""}>
             <CardContent className="p-4 md:p-5">
               <p className="text-xs text-muted-foreground md:text-sm">{metric.label}</p>
               <p className={`mt-2 text-lg font-bold md:text-2xl ${metric.tone ?? ""}`}>{metric.value}</p>
@@ -239,6 +270,14 @@ function Result() {
           </Card>
         ))}
       </section>
+
+      {proposta && (
+        <div className="mt-8 max-w-xl">
+          <Rows title="Como o imóvel é pago" rows={pagamento} total={["Custo total do imóvel", custoComTerreno]} />
+          {hasValue(r.aporteParaAreaPlanejada) && <p className="mt-2 text-xs text-muted-foreground">O dinheiro do seu bolso inclui {BRL.format(r.aporteParaAreaPlanejada)} para construir {hasValue(r.areaPlanejada) ? m2(r.areaPlanejada) : "a área planejada"}, acima do que o financiamento cobre.</p>}
+          {hasValue(sobra) && <p className="mt-2 text-xs text-muted-foreground">Sobram {BRL.format(sobra)} da verba do banco: dá para ampliar a casa ou guardar para imprevistos.</p>}
+        </div>
+      )}
 
       {vender && r.cenarios.length > 0 && (
         <section className="mt-8">
@@ -295,7 +334,8 @@ function Result() {
         </section>
       )}
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-2">
+      <Detalhes recolher={proposta}>
+      <div className="grid gap-8 lg:grid-cols-2">
         <div className="space-y-8">
           <Rows
             title="Contrato"
@@ -333,7 +373,7 @@ function Result() {
           <Rows
             title="Custos"
             rows={[
-              ...(vender && hasValue(r.custoComTerreno) ? [["Terreno", item.terreno_valor] as Row] : []),
+              ["Terreno", item.terreno_valor],
               [hasValue(r.areaPlanejada) ? `Construção (${m2(r.areaPlanejada)})` : "Construção", r.custoConstrucao],
               ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
               ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
@@ -345,7 +385,7 @@ function Result() {
                   ]
                 : [[hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra] as Row]),
             ]}
-            total={vender && hasValue(r.custoComTerreno) ? ["Custo total (terreno + obra)", r.custoComTerreno] : ["Custo total", r.custoTotal]}
+            total={["Custo total (terreno + obra)", custoComTerreno]}
           />
           {r.primeiroImovelSfh && <p className="text-xs text-muted-foreground">Registros com desconto de 50% do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH).</p>}
         </div>
@@ -397,6 +437,7 @@ function Result() {
           </p>
         </section>
       )}
+      </Detalhes>
       <p className="mt-8 text-xs text-muted-foreground">Estimativas para decisão. Confirme valores com o banco, a prefeitura e o cartório.</p>
     </AppShell>
   );
