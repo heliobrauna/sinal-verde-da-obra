@@ -112,7 +112,7 @@ const HELP = {
   premio: "Pontos percentuais ao ano acima da Selic líquida de IR para compensar a falta de liquidez e os riscos de obra, de venda e da dívida no nome do investidor.",
   participacao: "Parte do investidor no que sobrar depois de devolvido o capital dele e pago o retorno preferencial (Selic líquida + prêmio).",
   imovel: "Valor total informado no simulador da Caixa: terreno + orçamento da obra. É a base que o banco avalia para definir o financiamento.",
-  entrada: "Diferença entre o valor do imóvel e o financiamento. Não é um pagamento ao banco: é o valor que você precisa comprovar que tem (ágio do lote, FGTS e dinheiro em conta) para o banco considerar o contrato viável. Guarde esses recursos: a obra exige aportes relevantes antes da primeira liberação.",
+  entrada: "Diferença entre o valor do imóvel e o financiamento. Não é um pagamento ao banco: é o valor que você precisa comprovar que tem (ágio do lote, FGTS e dinheiro em conta) para o banco considerar o contrato viável. O FGTS fica com o banco e é liberado com as medições, como o financiamento; para começar a obra, tenha em mãos pelo menos 10% da construção, que volta com as liberações.",
   financiamento: "Valor que o banco empresta. Primeiro quita o saldo devedor do lote, se houver; o restante é liberado em parcelas conforme a medição da obra, nunca de uma vez.",
 };
 
@@ -851,9 +851,10 @@ function LivePanel({ result, objetivo }: { result: ReturnType<typeof calculate>;
     { label: "Área viável", value: semCusto ? "—" : `${area(result.areaViavelMinima)} a ${area(result.areaViavelMaxima)} m²`, tone: "text-primary" },
     vender
       ? { label: "Venda estimada", value: semCusto ? "—" : BRL.format(result.valorVenda), tone: "" }
-      : { label: "Verba da obra", value: BRL.format(result.recursosUtilizaveis), tone: "" },
+      : { label: "Verba disponível para obra", value: BRL.format(result.recursosUtilizaveis), tone: "" },
     { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" },
     { label: "Dinheiro do cliente", value: BRL.format(result.desembolsoProprio), tone: "text-secondary" },
+    { label: "Para começar a obra", value: BRL.format(result.dinheiroParaComecar), tone: "" },
     ...(!semCusto && result.aporteParaAreaPlanejada > 0
       ? [{ label: "Aporte para a área", value: BRL.format(result.aporteParaAreaPlanejada), tone: "text-destructive" }]
       : []),

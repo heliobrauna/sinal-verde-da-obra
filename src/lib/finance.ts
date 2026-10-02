@@ -316,8 +316,13 @@ function calcular(input: SimulationInput) {
   const ganhoCapitalLote = loteProprio && input.custoAquisicaoLote > 0 ? Math.max(input.terreno - corretagemLoteValor - input.custoAquisicaoLote, 0) : 0;
   const irGanhoLote = ganhoCapitalLote * IR_GANHO_CAPITAL;
   const patrimonioTerreno = loteProprio ? Math.max(agioLote - corretagemLoteValor - irGanhoLote, 0) : 0;
-  // Entrada em dinheiro e FGTS são aplicados primeiro na obra e reduzem o capital de giro necessário.
-  const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - dinheiroEntrada - fgtsNaEntrada, 0);
+  // O banco e o FGTS só liberam após cada medição (Manual FGTS Moradia Própria, 8.5.2): para começar a obra
+  // é preciso caixa de 10% da construção. A entrada em dinheiro que sobra depois de completar o lote já
+  // é esse caixa; o FGTS não, porque também sai com as medições. O caixa inicial volta com as liberações.
+  const dinheiroEntradaNaObra = Math.max(dinheiroEntrada - saldoLoteNaoCoberto, 0);
+  const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - dinheiroEntradaNaObra, 0);
+  // Dinheiro em mãos até a primeira medição: despesas antes do contrato, assinatura e caixa inicial da obra.
+  const dinheiroParaComecar = desembolsoAntesContrato + desembolsoAssinatura + capitalGiro;
   const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
   const aportesInvestidor: InvestorFlow[] = [
     { mes: 0, rotulo: "Terreno (valor líquido se vendido)", valor: patrimonioTerreno },
@@ -376,7 +381,7 @@ function calcular(input: SimulationInput) {
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
     lucroDesejado: input.lucro, mesesAposObra, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
-    capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
+    capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
     origemTerreno: input.origemTerreno, selicAnual, aliquotaIr, selicLiquida, premioInvestidor: input.premioInvestidor,
     taxaPreferencial, retornoPreferencial, mesVenda, recebimentoConstrutorLote,
     corretagemLoteValor, ganhoCapitalLote, irGanhoLote,

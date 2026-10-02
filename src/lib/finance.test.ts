@@ -73,6 +73,19 @@ describe("projeção financeira", () => {
     expect(estimatedExpenses(0, 0, 0, 0, 0, 0, 100).find((item) => item.id === "alvara")?.valor).toBe(252);
   });
 
+  it("exige caixa de 10% da obra para começar; o FGTS da entrada só sai com as medições", () => {
+    // Lote quitado de R$ 150 mil cobre R$ 100 mil da entrada; nada a comprovar em dinheiro.
+    const quitado = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 0, terreno: 150000 });
+    expect(quitado.dinheiroEntrada).toBe(0);
+    expect(quitado.capitalGiro).toBeCloseTo((quitado.custoConstrucao + quitado.extrasTotal) * 0.1);
+    expect(quitado.dinheiroParaComecar).toBeCloseTo(quitado.desembolsoAntesContrato + quitado.desembolsoAssinatura + quitado.capitalGiro);
+    // Ágio de R$ 50 mil + FGTS de R$ 20 mil + R$ 30 mil em dinheiro: só o dinheiro reduz o caixa inicial.
+    const misto = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 100000, terreno: 150000, fgtsUtilizado: 20000, areaPlanejada: 200 });
+    expect(misto.fgtsNaEntrada).toBe(20000);
+    expect(misto.dinheiroEntrada).toBe(30000);
+    expect(misto.capitalGiro).toBeCloseTo((misto.custoConstrucao + misto.extrasTotal) * 0.1 - 30000);
+  });
+
   it("data o capital do investidor e divide o lucro em cascata", () => {
     const result = calculate(input);
     // Patrimônio do lote + despesas pré-obra + 10% da obra + juros de obra.

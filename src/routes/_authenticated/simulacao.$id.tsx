@@ -78,6 +78,7 @@ type R = {
   maiorEncargoMensal?: number;
   aportesInvestidor?: { mes: number; rotulo: string; valor: number }[];
   capitalGiro?: number;
+  dinheiroParaComecar?: number;
   selicAnual?: number;
   selicLiquida?: number;
   aliquotaIr?: number;
@@ -206,7 +207,7 @@ function Result() {
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
     vender
       ? { label: "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
-      : { label: "Verba da obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
+      : { label: "Verba disponível para obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
     { label: "Custo total (terreno + obra)", value: hasValue(custoComTerreno) ? BRL.format(custoComTerreno) : undefined, detail: custoDetalhe },
     vender
       ? { label: r.lucroConstrutorDesejado != null ? "Lucro total na venda" : "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, detail: hasValue(r.lucroConstrutorDesejado ?? undefined) ? `Construtor: ${BRL.format(r.lucroConstrutorDesejado ?? 0)}` : undefined, tone: "text-primary" }
@@ -276,6 +277,20 @@ function Result() {
           <Rows title="Como o imóvel é pago" rows={pagamento} total={["Custo total do imóvel", custoComTerreno]} />
           {hasValue(r.aporteParaAreaPlanejada) && <p className="mt-2 text-xs text-muted-foreground">O dinheiro do seu bolso inclui {BRL.format(r.aporteParaAreaPlanejada)} para construir {hasValue(r.areaPlanejada) ? m2(r.areaPlanejada) : "a área planejada"}, acima do que o financiamento cobre.</p>}
           {hasValue(sobra) && <p className="mt-2 text-xs text-muted-foreground">Sobram {BRL.format(sobra)} da verba do banco: dá para ampliar a casa ou guardar para imprevistos.</p>}
+          {r.dinheiroParaComecar !== undefined && (
+            <div className="mt-8">
+              <Rows
+                title="Dinheiro para começar"
+                rows={[
+                  ["Antes do contrato (projetos, alvará, certidões)", r.desembolsoAntesContrato],
+                  ["Na assinatura (entrada em dinheiro, taxas e cartório)", r.desembolsoAssinatura],
+                  ["Caixa para iniciar a obra (10%)", r.capitalGiro],
+                ]}
+                total={["Total em mãos até a 1ª medição", r.dinheiroParaComecar]}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">O banco e o FGTS só liberam depois de cada etapa medida. O caixa para iniciar paga as fundações e volta com as liberações das medições.</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -349,8 +364,9 @@ function Result() {
               ["Quitação do lote", r.quitacaoLote],
               ["Financiamento para a obra", r.financiamentoConstrucao],
             ]}
-            total={["Verba da obra", r.recursosUtilizaveis]}
+            total={["Verba disponível para obra", r.recursosUtilizaveis]}
           />
+          {hasValue(r.fgtsNaEntrada) && <p className="-mt-6 text-xs text-muted-foreground">O FGTS da entrada fica com o banco e é liberado com as medições da obra, como o financiamento; ele não serve de caixa para começar.</p>}
           {hasValue(r.financiamentoExcedente) && <p className="-mt-6 text-xs text-secondary">O ágio supera a entrada: {BRL.format(r.financiamentoExcedente)} do valor informado não seriam liberados para a obra.</p>}
           <Rows
             title="Dinheiro do cliente"
