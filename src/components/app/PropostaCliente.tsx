@@ -41,7 +41,7 @@ const FONTES = [
 
 function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <section className="break-inside-avoid rounded-2xl border border-zinc-200 p-5">
+    <section className="@container break-inside-avoid rounded-2xl border border-zinc-200 p-5">
       <h2 className="text-base font-bold text-zinc-900">{titulo}</h2>
       <div className="mt-4">{children}</div>
     </section>
@@ -60,7 +60,7 @@ function CasaQueSeEnche({ pagamento }: { pagamento: PropostaData["pagamento"] })
     return { ...fonte, y, altura };
   });
   return (
-    <div className="grid items-center gap-5 sm:grid-cols-[180px_1fr]">
+    <div className="grid items-center gap-5 @md:grid-cols-[160px_1fr]">
       <svg viewBox="0 0 200 180" className="mx-auto w-44" role="img" aria-label="Como o valor da casa é dividido entre banco, FGTS, terreno e seu bolso">
         <defs>
           <clipPath id="casa">
@@ -80,9 +80,9 @@ function CasaQueSeEnche({ pagamento }: { pagamento: PropostaData["pagamento"] })
         {FONTES.filter((fonte) => pagamento[fonte.key] > 0.005).map((fonte) => (
           <li key={fonte.key} className="flex items-center gap-3">
             <span className="size-3.5 shrink-0 rounded-sm" style={{ backgroundColor: fonte.cor }} />
-            <span className="flex-1 text-zinc-600">{fonte.rotulo}</span>
-            <span className="font-semibold text-zinc-900">{BRL.format(pagamento[fonte.key])}</span>
-            <span className="w-10 text-right text-xs text-zinc-500">{total > 0 ? pct((pagamento[fonte.key] / total) * 100) : ""}</span>
+            <span className="min-w-0 flex-1 text-zinc-600">{fonte.rotulo}</span>
+            <span className="shrink-0 whitespace-nowrap font-semibold text-zinc-900">{BRL.format(pagamento[fonte.key])}</span>
+            <span className="w-10 shrink-0 text-right text-xs text-zinc-500">{total > 0 ? pct((pagamento[fonte.key] / total) * 100) : ""}</span>
           </li>
         ))}
       </ul>
@@ -155,10 +155,10 @@ function LinhaDoTempo({ data }: { data: PropostaData }) {
     { icone: CalendarClock, titulo: "Prestação", valor: data.prestacao, texto: data.sistema === "SAC" ? `Primeira parcela, depois diminui · ${data.prazoMeses} meses` : `Parcela fixa · ${data.prazoMeses} meses` },
   ];
   return (
-    <ol className="grid gap-4 md:grid-cols-5">
+    <ol className="grid gap-4 @3xl:grid-cols-5">
       {passos.map((passo, index) => (
-        <li key={passo.titulo} className="relative flex gap-3 md:flex-col md:items-center md:text-center">
-          {index < passos.length - 1 && <span className="absolute left-5 top-11 h-[calc(100%-1.75rem)] w-0.5 bg-emerald-200 md:left-[calc(50%+1.5rem)] md:top-5 md:h-0.5 md:w-[calc(100%-2rem)]" />}
+        <li key={passo.titulo} className="relative flex gap-3 @3xl:flex-col @3xl:items-center @3xl:text-center">
+          {index < passos.length - 1 && <span className="absolute left-5 top-11 h-[calc(100%-1.75rem)] w-0.5 bg-emerald-200 @3xl:left-[calc(50%+1.5rem)] @3xl:top-5 @3xl:h-0.5 @3xl:w-[calc(100%-2rem)]" />}
           <span className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
             <passo.icone className="size-5" />
           </span>
@@ -182,7 +182,7 @@ function PrestacaoRenda({ prestacao, renda }: { prestacao: number; renda: number
         <div className="h-full rounded-full" style={{ width: `${Math.min(percentual, 100)}%`, backgroundColor: cor }} />
         <div className="absolute inset-y-0 w-0.5 bg-zinc-900" style={{ left: `${LIMITE_RENDA}%` }} />
       </div>
-      <div className="mt-2 flex justify-between text-xs text-zinc-500">
+      <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-zinc-500">
         <span>Prestação {BRL.format(prestacao)} · {percentual.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% da renda</span>
         <span>Limite do banco: {LIMITE_RENDA}%</span>
       </div>
@@ -237,8 +237,8 @@ export function PropostaCliente({ data }: { data: PropostaData }) {
               {custos.map((item) => (
                 <li key={item.rotulo} className="flex items-center gap-3">
                   <span className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: item.cor }} />
-                  <span className="flex-1 text-zinc-600">{item.rotulo}</span>
-                  <span className="font-semibold">{BRL.format(item.valor)}</span>
+                  <span className="min-w-0 flex-1 text-zinc-600">{item.rotulo}</span>
+                  <span className="shrink-0 whitespace-nowrap font-semibold">{BRL.format(item.valor)}</span>
                 </li>
               ))}
             </ul>
