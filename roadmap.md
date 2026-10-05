@@ -54,6 +54,8 @@
 - [x] Separar visão do construtor e proposta ao cliente com infográficos e impressão em PDF
 - [x] Avisar quando entrada e financiamento parecem invertidos
 - [x] Link público da proposta para o cliente abrir sem login (30 dias, pelo WhatsApp)
+- [x] WhatsApp e CREA/CAU do construtor no perfil e botão "Quero seguir com essa proposta" no link público
+- [ ] Logo do construtor na proposta
 - [x] Prestação como no simulador da Caixa (PRICE ou SAC, prazo em meses, TR só na fase de obra)
 - [ ] Pré-análise pela renda: quanto o cliente consegue financiar antes do simulador da Caixa
 - [ ] Acompanhamento da obra depois do contrato: medição × liberação × caixa

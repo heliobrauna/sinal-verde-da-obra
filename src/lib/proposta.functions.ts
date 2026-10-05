@@ -32,6 +32,16 @@ export const lerPropostaPublica = createServerFn({ method: "GET" })
     const { data: simulacao } = await supabaseAdmin.from("simulacoes").select("*").eq("id", validacao.id).maybeSingle();
     const proposta = simulacao ? montarProposta(simulacao) : null;
     if (!simulacao || !proposta) return { status: "indisponivel" as const };
-    const { data: perfil } = await supabaseAdmin.from("profiles").select("nome").eq("id", simulacao.user_id).maybeSingle();
-    return { status: "ok" as const, proposta, construtor: perfil?.nome ?? "", expiraEm: validacao.expiraEm };
+    const [{ data: perfil }, { data: conta }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("nome").eq("id", simulacao.user_id).maybeSingle(),
+      supabaseAdmin.auth.admin.getUserById(simulacao.user_id),
+    ]);
+    // Contato que o construtor preenche no perfil (metadados da conta); o e-mail não é exposto.
+    const meta = conta?.user?.user_metadata ?? {};
+    return {
+      status: "ok" as const,
+      proposta,
+      construtor: { nome: perfil?.nome ?? "", telefone: String(meta["telefone"] ?? ""), registro: String(meta["registro"] ?? "") },
+      expiraEm: validacao.expiraEm,
+    };
   });
