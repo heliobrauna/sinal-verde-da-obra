@@ -29,6 +29,7 @@ import {
   suggestedExecutionMonths,
   type ClientExpense,
   type OrigemTerreno,
+  type SistemaAmortizacao,
   type Extra,
   type MonthlyRelease,
   type Stage,
@@ -102,6 +103,8 @@ const ORIGEM_NOTA: Record<OrigemTerreno, string> = {
 };
 const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const HELP = {
+  sistema: "Use o mesmo do simulador da Caixa. No PRICE a parcela é fixa; no SAC a primeira é a maior e as seguintes diminuem. Vale para depois da obra.",
+  prazo: "Prazo de pagamento do financiamento no simulador da Caixa (até 420 meses). A prestação estimada usa este prazo, sem a TR, como o simulador.",
   juros: "Taxa efetiva anual mostrada pelo simulador da Caixa. Na fase de obra, os juros mensais são a taxa nominal ÷ 12, cobrados sobre a dívida já liberada (lote + parcelas medidas).",
   tr: "Atualização monetária cobrada junto com os juros na fase de obra: dívida liberada × TR. Consultada automaticamente no Banco Central; edite se quiser outra premissa.",
   seguros: "Seguro Morte e Invalidez (MIP), Danos Físicos (DFI) e tarifa de administração cobrados todo mês desde a assinatura. Copie os valores da 1ª prestação no simulador da Caixa.",
@@ -231,6 +234,8 @@ function Wizard() {
   const [trMensal, setTrMensal] = useState(0);
   const [trFonte, setTrFonte] = useState("");
   const [seguroTarifaMensal, setSeguroTarifaMensal] = useState(0);
+  const [sistemaAmortizacao, setSistemaAmortizacao] = useState<SistemaAmortizacao>("PRICE");
+  const [prazoFinanciamento, setPrazoFinanciamento] = useState(420);
   const [maoDeObra, setMaoDeObra] = useState(0);
   const [materiais, setMateriais] = useState(0);
   const [areaPlanejada, setAreaPlanejada] = useState(0);
@@ -255,8 +260,8 @@ function Wizard() {
   const cub = cubRef?.valor ?? savedCub;
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, cronograma, liberacoes, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, participacaoInvestidor],
   );
   // ITBI e registro de compra só quando o lote muda de dono na operação.
   const transferenciaLote = origemTerreno !== "investidor" || (situacao === "financiado" && saldo > 0);
@@ -289,6 +294,8 @@ function Wizard() {
         jurosAnuais,
         trMensal,
         seguroTarifaMensal,
+        sistemaAmortizacao,
+        prazoFinanciamento,
         stages: cronograma,
         liberacoes,
         despesas,
@@ -300,7 +307,7 @@ function Wizard() {
         custoAquisicaoLote,
         lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null,
       }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   useEffect(() => {
     if (!editar) return;
@@ -316,7 +323,7 @@ function Wizard() {
       if (saved.cubReferencia) setCubRef(saved.cubReferencia as CubReference);
        setValorImovel(saved.valorOperacao ?? data.credito_aprovado / ((saved as { percentualFinanciamento?: number }).percentualFinanciamento ?? 80) * 100); setFgtsUtilizado(saved.fgtsUtilizado ?? 0);
 
-       setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); if (saved.trMensal !== undefined) { setTrMensal(saved.trMensal); setTrFonte("valor salvo na simulação"); } setSeguroTarifaMensal(saved.seguroTarifaMensal ?? 0); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
+       setJurosAnuais(saved.taxaJurosAnual ?? monthlyToAnnualRate(data.taxa_juros_obra_mensal)); if (saved.trMensal !== undefined) { setTrMensal(saved.trMensal); setTrFonte("valor salvo na simulação"); } setSeguroTarifaMensal(saved.seguroTarifaMensal ?? 0); setSistemaAmortizacao(saved.sistemaAmortizacao ?? "PRICE"); setPrazoFinanciamento(saved.prazoFinanciamento ?? 420); setMaoDeObra(saved.maoDeObra ?? (saved.custoM2 ?? 0) / 2);
       setMateriais(saved.materiais ?? (saved.custoM2 ?? 0) / 2);
        setAreaPlanejada(saved.areaPlanejada ?? saved.areaViavelMinima ?? saved.areaViavel ?? 0);
       setExtras(Array.isArray(data.custos_extras) ? data.custos_extras as Extra[] : []);
@@ -628,6 +635,14 @@ function Wizard() {
                    {field("Taxa de juros efetiva anual (% a.a. — simulador Caixa)", jurosAnuais, setJurosAnuais, false, HELP.juros)}
                   {field("TR mensal (%)", trMensal, (value) => { setTrMensal(value); setTrFonte(trFonte || "informada manualmente"); }, false, HELP.tr)}
                   {field("Seguros MIP/DFI e tarifa por mês", seguroTarifaMensal, setSeguroTarifaMensal, true, HELP.seguros)}
+                  <div>
+                    <div className="flex items-center gap-1.5"><Label>Sistema de amortização</Label><InfoTip label="Sistema de amortização" text={HELP.sistema} /></div>
+                    <select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={sistemaAmortizacao} onChange={(e) => setSistemaAmortizacao(e.target.value as SistemaAmortizacao)}>
+                      <option value="PRICE">PRICE (parcela fixa)</option>
+                      <option value="SAC">SAC (parcela decrescente)</option>
+                    </select>
+                  </div>
+                  {field("Prazo do financiamento (meses)", prazoFinanciamento, setPrazoFinanciamento, false, HELP.prazo)}
                   {field("Mão de obra por m²", maoDeObra, setMaoDeObra)}
                   {field("Materiais por m²", materiais, setMateriais)}
                 </div>

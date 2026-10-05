@@ -54,3 +54,4 @@
 - [x] Separar visão do construtor e proposta ao cliente com infográficos e impressão em PDF
 - [x] Avisar quando entrada e financiamento parecem invertidos
 - [ ] Link público da proposta para o cliente abrir sem login
+- [x] Prestação como no simulador da Caixa (PRICE ou SAC, prazo em meses, TR só na fase de obra)

@@ -23,6 +23,8 @@ export type PropostaData = {
   encargoInicial: number;
   encargoFinal: number;
   prestacao: number;
+  sistema: "PRICE" | "SAC";
+  prazoMeses: number;
 };
 
 const LIMITE_RENDA = 30;
@@ -139,7 +141,7 @@ function LinhaDoTempo({ data }: { data: PropostaData }) {
       texto: `${data.caixaInicio > 0.005 ? "Caixa para começar (volta com as medições). " : ""}Parcela de obra de ${BRL.format(data.encargoInicial)} a ${BRL.format(data.encargoFinal)} por mês`,
     },
     { icone: KeyRound, titulo: "Chaves na mão", valor: 0, texto: "Obra concluída e averbada" },
-    { icone: CalendarClock, titulo: "Prestação", valor: data.prestacao, texto: "Primeira parcela estimada, depois diminui aos poucos" },
+    { icone: CalendarClock, titulo: "Prestação", valor: data.prestacao, texto: data.sistema === "SAC" ? `Primeira parcela, depois diminui · ${data.prazoMeses} meses` : `Parcela fixa · ${data.prazoMeses} meses` },
   ];
   return (
     <ol className="grid gap-4 md:grid-cols-5">
@@ -170,10 +172,11 @@ function PrestacaoRenda({ prestacao, renda }: { prestacao: number; renda: number
         <div className="absolute inset-y-0 w-0.5 bg-zinc-900" style={{ left: `${LIMITE_RENDA}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-xs text-zinc-500">
-        <span>Prestação {BRL.format(prestacao)} · {pct(percentual)} da renda</span>
+        <span>Prestação {BRL.format(prestacao)} · {percentual.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% da renda</span>
         <span>Limite do banco: {LIMITE_RENDA}%</span>
       </div>
       <p className="mt-2 text-sm text-zinc-700">Renda informada: <strong className="text-zinc-900">{BRL.format(renda)}</strong> por mês.</p>
+      <p className="mt-1 text-xs text-zinc-500">Como no simulador da Caixa, a parcela não inclui a TR, que varia e pode alterar um pouco o valor.</p>
     </div>
   );
 }

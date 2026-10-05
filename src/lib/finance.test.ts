@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { annualToMonthlyRate, calculate, estimatedExpenses, pciReleases, suggestedExecutionMonths, type SimulationInput } from "./finance";
+import { annualToMonthlyRate, calculate, estimatedExpenses, parcelasAmortizacao, pciReleases, suggestedExecutionMonths, type SimulationInput } from "./finance";
 import { registroEstimate } from "./emolumentos";
 
 const input: SimulationInput = {
@@ -11,6 +11,7 @@ const input: SimulationInput = {
   despesas: [{ id: "projetos", categoria: "Despesas iniciais", nome: "Projetos", valor: 10000, fonte: "Estimativa", observacao: "" }],
   participacaoInvestidor: 50, origemTerreno: "investidor", selicAnual: 13.75, premioInvestidor: 5,
   corretagemLote: 0, custoAquisicaoLote: 0, lucroConstrutor: null, trMensal: 0, seguroTarifaMensal: 0,
+  sistemaAmortizacao: "SAC", prazoFinanciamento: 360,
 };
 
 describe("projeção financeira", () => {
@@ -194,10 +195,24 @@ describe("projeção financeira", () => {
     expect(dentro.obraContrato).toBe(350000);
   });
 
-  it("estima a primeira prestação depois da obra sobre a dívida inteira", () => {
-    const result = calculate({ ...input, trMensal: 0.15, seguroTarifaMensal: 80 });
+  it("estima a primeira prestação depois da obra sobre a dívida inteira, sem TR", () => {
     const i = annualToMonthlyRate(10) / 100;
-    expect(result.prestacaoInicial).toBeCloseTo(400000 / 360 + 400000 * (0.0015 + 1.0015 * i) + 80);
+    const sac = calculate({ ...input, trMensal: 0.15, seguroTarifaMensal: 80 });
+    expect(sac.prestacaoInicial).toBeCloseTo(400000 / 360 + 400000 * i + 80);
+    const price = calculate({ ...input, trMensal: 0.15, seguroTarifaMensal: 80, sistemaAmortizacao: "PRICE", prazoFinanciamento: 420 });
+    expect(price.prestacaoInicial).toBeCloseTo(400000 * i / (1 - Math.pow(1 + i, -420)) + 80);
+  });
+
+  it("reproduz a parcela PRICE do simulador da Caixa (R$ 217,6 mil, 8,47% a.a., 420 meses)", () => {
+    const i = annualToMonthlyRate(8.47) / 100;
+    const [primeira] = parcelasAmortizacao(217600, i, 420, "PRICE", 0, 1);
+    expect(primeira!.parcela).toBeGreaterThan(1550);
+    expect(primeira!.parcela).toBeLessThan(1600);
+    // No PRICE a parcela é constante; no SAC a amortização é que é constante.
+    const price = parcelasAmortizacao(217600, i, 420, "PRICE", 0, 3);
+    expect(price[2]!.parcela).toBeCloseTo(price[0]!.parcela);
+    const sac = parcelasAmortizacao(217600, i, 420, "SAC", 0, 3);
+    expect(sac[2]!.amortizacao).toBeCloseTo(217600 / 420);
   });
 
   it("pré-preenche PCI até 320 m² e sugere 18 meses acima dessa área", () => {

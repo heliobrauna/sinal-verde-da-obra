@@ -96,6 +96,8 @@ type R = {
   corretagemLoteValor?: number;
   irGanhoLote?: number;
   prestacaoInicial?: number;
+  sistemaAmortizacao?: "PRICE" | "SAC";
+  prazoFinanciamento?: number;
   remuneracaoResponsavel?: number;
 };
 type Row = [label: string, value: number | undefined];
@@ -250,6 +252,8 @@ function Result() {
           encargoInicial: liberacoes[0]?.encargo ?? 0,
           encargoFinal: liberacoes[liberacoes.length - 1]?.encargo ?? 0,
           prestacao: r.prestacaoInicial,
+          sistema: r.sistemaAmortizacao ?? "SAC",
+          prazoMeses: r.prazoFinanciamento ?? 360,
         }
       : null;
   const verCliente = !vender && visao === "cliente";
@@ -454,6 +458,7 @@ function Result() {
             ]}
             total={hasValue(remuneracao) ? ["Custo total (terreno + obra + remuneração)", custoImovel] : ["Custo total (terreno + obra)", custoComTerreno]}
           />
+          {hasValue(r.prestacaoInicial) && <p className="text-sm">Prestação estimada após a obra{r.sistemaAmortizacao ? ` (${r.sistemaAmortizacao}, ${r.prazoFinanciamento} meses, sem TR)` : ""}: <strong>{BRL.format(r.prestacaoInicial)}</strong>{item.renda_declarada > 0 && ` · ${NUMBER.format((r.prestacaoInicial / item.renda_declarada) * 100)}% da renda`}</p>}
           {r.primeiroImovelSfh && <p className="text-xs text-muted-foreground">Registros com desconto de 50% do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH).</p>}
         </div>
         <div className="space-y-8">
