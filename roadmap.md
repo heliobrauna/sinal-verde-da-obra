@@ -53,5 +53,7 @@
 - [x] Não usar FGTS em obra para vender (destinado à moradia própria do titular)
 - [x] Separar visão do construtor e proposta ao cliente com infográficos e impressão em PDF
 - [x] Avisar quando entrada e financiamento parecem invertidos
-- [ ] Link público da proposta para o cliente abrir sem login
+- [x] Link público da proposta para o cliente abrir sem login (30 dias, pelo WhatsApp)
 - [x] Prestação como no simulador da Caixa (PRICE ou SAC, prazo em meses, TR só na fase de obra)
+- [ ] Pré-análise pela renda: quanto o cliente consegue financiar antes do simulador da Caixa
+- [ ] Acompanhamento da obra depois do contrato: medição × liberação × caixa

@@ -1,7 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app/AppShell";
-import { PropostaCliente, type PropostaData } from "@/components/app/PropostaCliente";
+import { PropostaCliente } from "@/components/app/PropostaCliente";
+import { DESPESAS_DO_CONSTRUTOR, montarProposta } from "@/lib/proposta";
+import { gerarLinkProposta } from "@/lib/proposta.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -18,7 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { BRL, NUMBER, type ClientExpense } from "@/lib/finance";
 import type { Tables } from "@/integrations/supabase/types";
-import { ArrowLeft, TrendingDown, Minus, TrendingUp, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, TrendingDown, Minus, TrendingUp, Trash2, Pencil, Link2, Copy, MessageCircle } from "lucide-react";
 type R = {
   areaViavel: number;
   areaViavelMinima?: number;
@@ -147,7 +150,57 @@ function Rows({ title, rows, total }: { title: string; rows: Row[]; total?: Row 
 
 // Honorários, administração e acompanhamento são ganhos do construtor: na proposta ao cliente,
 // entram em "Construção da casa" junto com a remuneração, sem revelar a margem.
-const DESPESAS_DO_CONSTRUTOR = new Set(["honorarios-entrada", "honorarios-saldo", "administracao", "acompanhamento"]);
+
+// Link público da proposta (30 dias) para enviar ao cliente pelo WhatsApp, sem que ele precise de login.
+function LinkParaCliente({ id, nome }: { id: string; nome: string }) {
+  const gerar = useServerFn(gerarLinkProposta);
+  const [link, setLink] = useState<{ url: string; validade: string } | null>(null);
+  const [aviso, setAviso] = useState("");
+  async function criar() {
+    setAviso("");
+    try {
+      const { token, expiraEm } = await gerar({ data: { id } });
+      const url = `${window.location.origin}/proposta/${token}`;
+      setLink({ url, validade: new Date(expiraEm).toLocaleDateString("pt-BR") });
+      await navigator.clipboard?.writeText(url).then(() => setAviso("Link copiado."), () => undefined);
+    } catch {
+      setAviso("Não foi possível gerar o link. Tente de novo.");
+    }
+  }
+  const mensagem = link ? `Olá! Segue a proposta da sua casa (${nome}): ${link.url}` : "";
+  return (
+    <section className="mb-5 rounded-lg border p-4 print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-semibold">Enviar ao cliente</p>
+          <p className="text-sm text-muted-foreground">Link válido por 30 dias, sem login. Mostra só esta proposta.</p>
+        </div>
+        <Button type="button" variant={link ? "outline" : "default"} onClick={criar}>
+          <Link2 />
+          {link ? "Gerar novo link" : "Gerar link"}
+        </Button>
+      </div>
+      {link && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} className="h-9 min-w-0 flex-1 rounded-md border bg-muted/40 px-3 text-xs" aria-label="Link da proposta" />
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(link.url).then(() => setAviso("Link copiado."))}>
+              <Copy />
+              Copiar
+            </Button>
+            <Button asChild size="sm">
+              <a href={`https://wa.me/?text=${encodeURIComponent(mensagem)}`} target="_blank" rel="noopener noreferrer">
+                <MessageCircle />
+                WhatsApp
+              </a>
+            </Button>
+          </div>
+        </div>
+      )}
+      {(aviso || link) && <p className="mt-2 text-xs text-muted-foreground">{aviso}{link ? ` Válido até ${link.validade}.` : ""}</p>}
+    </section>
+  );
+}
 
 function Result() {
   const { id } = Route.useParams();
@@ -222,40 +275,7 @@ function Result() {
   const despesasConstrutor = despesas.filter((x) => DESPESAS_DO_CONSTRUTOR.has(x.id)).reduce((sum, x) => sum + x.valor, 0);
   const liberacoes = r.liberacoesMensais ?? [];
   // A proposta usa só simulações salvas com o cálculo atual; as antigas precisam ser abertas e salvas de novo.
-  const dadosProposta: PropostaData | null =
-    !vender && r.prestacaoInicial !== undefined && r.desembolsoProprio !== undefined && r.financiamentoConstrucao !== undefined && hasValue(custoComTerreno)
-      ? {
-          nome: item.nome,
-          areaMin,
-          areaMax,
-          areaPlanejada: r.areaPlanejada ?? areaMin,
-          renda: item.renda_declarada,
-          custos: {
-            terreno: item.terreno_valor,
-            construcao: (r.custoConstrucao ?? 0) + r.extrasTotal + remuneracao + despesasConstrutor,
-            documentos: despesas.reduce((sum, x) => sum + x.valor, 0) - despesasConstrutor,
-            juros: r.jurosObra ?? 0,
-          },
-          // A verba do banco que sobra não é liberada: o banco entra só com o que a obra usa.
-          pagamento: {
-            banco: (r.quitacaoLote ?? 0) + r.financiamentoConstrucao - sobra,
-            fgts: r.fgtsNaEntrada ?? 0,
-            terreno: r.agioNaEntrada ?? 0,
-            bolso: r.desembolsoProprio,
-          },
-          folgaBanco: sobra,
-          aporteArea: r.aporteParaAreaPlanejada ?? 0,
-          antesContrato: r.desembolsoAntesContrato ?? 0,
-          assinatura: r.desembolsoAssinatura ?? 0,
-          caixaInicio: r.capitalGiro ?? 0,
-          mesesObra: r.prazoExecucaoMeses ?? liberacoes.length,
-          encargoInicial: liberacoes[0]?.encargo ?? 0,
-          encargoFinal: liberacoes[liberacoes.length - 1]?.encargo ?? 0,
-          prestacao: r.prestacaoInicial,
-          sistema: r.sistemaAmortizacao ?? "SAC",
-          prazoMeses: r.prazoFinanciamento ?? 360,
-        }
-      : null;
+  const dadosProposta = montarProposta(item);
   const verCliente = !vender && visao === "cliente";
 
   return (
@@ -301,6 +321,7 @@ function Result() {
       )}
       {verCliente ? (
         <div className="mt-6">
+          {dadosProposta && <LinkParaCliente id={id} nome={item.nome} />}
           {dadosProposta ? <PropostaCliente data={dadosProposta} /> : <p className="rounded-lg border p-5 text-sm text-muted-foreground">Esta simulação foi salva com uma versão anterior do cálculo. Abra em <strong>Editar</strong> e salve de novo para gerar a proposta ao cliente.</p>}
         </div>
       ) : (<>

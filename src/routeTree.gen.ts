@@ -17,6 +17,7 @@ import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedBonusRouteImport } from './routes/_authenticated/bonus'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as PropostaTokenRouteImport } from './routes/proposta.$token'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedSimulacaoIdRouteImport } from './routes/_authenticated/simulacao.$id'
 import { Route as AuthenticatedSimulacaoNovaRouteImport } from './routes/_authenticated/simulacao.nova'
@@ -62,6 +63,11 @@ const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const PropostaTokenRoute = PropostaTokenRouteImport.update({
+  id: '/proposta/$token',
+  path: '/proposta/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
   id: '/admin',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/bonus': typeof AuthenticatedBonusRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/proposta/$token': typeof PropostaTokenRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/simulacao/$id': typeof AuthenticatedSimulacaoIdRoute
   '/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/bonus': typeof AuthenticatedBonusRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/proposta/$token': typeof PropostaTokenRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/simulacao/$id': typeof AuthenticatedSimulacaoIdRoute
   '/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/_authenticated/bonus': typeof AuthenticatedBonusRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
+  '/proposta/$token': typeof PropostaTokenRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/_authenticated/simulacao/$id': typeof AuthenticatedSimulacaoIdRoute
   '/_authenticated/simulacao/nova': typeof AuthenticatedSimulacaoNovaRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/bonus'
     | '/dashboard'
     | '/perfil'
+    | '/proposta/$token'
     | '/admin'
     | '/simulacao/$id'
     | '/simulacao/nova'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/bonus'
     | '/dashboard'
     | '/perfil'
+    | '/proposta/$token'
     | '/admin'
     | '/simulacao/$id'
     | '/simulacao/nova'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/_authenticated/bonus'
     | '/_authenticated/dashboard'
     | '/_authenticated/perfil'
+    | '/proposta/$token'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/simulacao/$id'
     | '/_authenticated/simulacao/nova'
@@ -208,6 +220,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   CadastroRoute: typeof CadastroRoute
   LoginRoute: typeof LoginRoute
+  PropostaTokenRoute: typeof PropostaTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -267,6 +280,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/perfil'
       preLoaderRoute: typeof AuthenticatedPerfilRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/proposta/$token': {
+      id: '/proposta/$token'
+      path: '/proposta/$token'
+      fullPath: '/proposta/$token'
+      preLoaderRoute: typeof PropostaTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/_admin/admin': {
       id: '/_authenticated/_admin/admin'
@@ -394,6 +414,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   CadastroRoute: CadastroRoute,
   LoginRoute: LoginRoute,
+  PropostaTokenRoute: PropostaTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
