@@ -90,21 +90,32 @@ function CasaQueSeEnche({ pagamento }: { pagamento: PropostaData["pagamento"] })
   );
 }
 
-// Régua com a faixa de área que cabe no orçamento e a casa planejada.
+// Régua com a faixa de área que cabe no orçamento e a casa planejada; cada número fica junto do que representa.
 function ReguaArea({ areaMin, areaMax, areaPlanejada }: Pick<PropostaData, "areaMin" | "areaMax" | "areaPlanejada">) {
-  const fim = Math.max(areaMax, areaPlanejada) * 1.15 || 1;
-  const pos = (value: number) => `${Math.min((value / fim) * 100, 100)}%`;
+  // A escala aproxima a faixa útil (sem começar em zero) para os rótulos não se sobreporem.
+  const inicio = Math.min(areaMin, areaPlanejada) * 0.7;
+  const fim = Math.max(areaMax, areaPlanejada) * 1.1;
+  const pos = (value: number) => `${Math.min(Math.max(((value - inicio) / (fim - inicio || 1)) * 100, 0), 100)}%`;
+  const area = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m²`;
+  const meio = (areaMin + areaMax) / 2;
   return (
-    <div>
+    <div className="px-6 pt-8 pb-11">
       <div className="relative h-4 rounded-full bg-zinc-100">
-        <div className="absolute inset-y-0 rounded-full bg-emerald-200" style={{ left: pos(areaMin), right: `calc(100% - ${pos(areaMax)})` }} />
+        <div className="absolute inset-y-0 rounded-full bg-emerald-300" style={{ left: pos(areaMin), right: `calc(100% - ${pos(areaMax)})` }} />
         <div className="absolute -top-1.5 h-7 w-1 -translate-x-1/2 rounded-full bg-zinc-900" style={{ left: pos(areaPlanejada) }} />
+        <span className="absolute bottom-full mb-3 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-zinc-900" style={{ left: pos(areaPlanejada) }}>
+          Sua casa: {area(areaPlanejada)}
+        </span>
+        {areaMax - areaMin > 0.05 ? (
+          <>
+            <span className="absolute top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-emerald-700" style={{ left: pos(areaMin) }}>{area(areaMin)}</span>
+            <span className="absolute top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-emerald-700" style={{ left: pos(areaMax) }}>{area(areaMax)}</span>
+          </>
+        ) : (
+          <span className="absolute top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-emerald-700" style={{ left: pos(areaMin) }}>{area(areaMin)}</span>
+        )}
+        <span className="absolute top-full mt-7 -translate-x-1/2 whitespace-nowrap text-xs text-zinc-500" style={{ left: pos(meio) }}>cabe no orçamento</span>
       </div>
-      <div className="mt-2 flex justify-between text-xs text-zinc-500">
-        <span>0 m²</span>
-        <span>Cabe no orçamento: {m2(areaMin)} a {m2(areaMax)}</span>
-      </div>
-      <p className="mt-2 text-sm text-zinc-700">Sua casa planejada: <strong className="text-zinc-900">{m2(areaPlanejada)}</strong></p>
     </div>
   );
 }
