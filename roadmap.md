@@ -57,5 +57,6 @@
 - [x] WhatsApp e CREA/CAU do construtor no perfil e botão "Quero seguir com essa proposta" no link público
 - [ ] Logo do construtor na proposta
 - [x] Prestação como no simulador da Caixa (PRICE ou SAC, prazo em meses, TR só na fase de obra)
-- [ ] Pré-análise pela renda: quanto o cliente consegue financiar antes do simulador da Caixa
+- [x] Pré-análise pela renda: quanto o cliente consegue financiar antes do simulador da Caixa
+- [ ] Subsídio das faixas 1 e 2 na pré-análise
 - [ ] Acompanhamento da obra depois do contrato: medição × liberação × caixa

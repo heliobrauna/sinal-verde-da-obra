@@ -17,6 +17,7 @@ import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedBonusRouteImport } from './routes/_authenticated/bonus'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as AuthenticatedPreAnaliseRouteImport } from './routes/_authenticated/pre-analise'
 import { Route as PropostaTokenRouteImport } from './routes/proposta.$token'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedSimulacaoIdRouteImport } from './routes/_authenticated/simulacao.$id'
@@ -62,6 +63,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPreAnaliseRoute = AuthenticatedPreAnaliseRouteImport.update({
+  id: '/pre-analise',
+  path: '/pre-analise',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const PropostaTokenRoute = PropostaTokenRouteImport.update({
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/bonus': typeof AuthenticatedBonusRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/pre-analise': typeof AuthenticatedPreAnaliseRoute
   '/proposta/$token': typeof PropostaTokenRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/simulacao/$id': typeof AuthenticatedSimulacaoIdRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/bonus': typeof AuthenticatedBonusRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/pre-analise': typeof AuthenticatedPreAnaliseRoute
   '/proposta/$token': typeof PropostaTokenRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/simulacao/$id': typeof AuthenticatedSimulacaoIdRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/_authenticated/bonus': typeof AuthenticatedBonusRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
+  '/_authenticated/pre-analise': typeof AuthenticatedPreAnaliseRoute
   '/proposta/$token': typeof PropostaTokenRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/_authenticated/simulacao/$id': typeof AuthenticatedSimulacaoIdRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/bonus'
     | '/dashboard'
     | '/perfil'
+    | '/pre-analise'
     | '/proposta/$token'
     | '/admin'
     | '/simulacao/$id'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/bonus'
     | '/dashboard'
     | '/perfil'
+    | '/pre-analise'
     | '/proposta/$token'
     | '/admin'
     | '/simulacao/$id'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/_authenticated/bonus'
     | '/_authenticated/dashboard'
     | '/_authenticated/perfil'
+    | '/_authenticated/pre-analise'
     | '/proposta/$token'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/simulacao/$id'
@@ -279,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/perfil'
       fullPath: '/perfil'
       preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pre-analise': {
+      id: '/_authenticated/pre-analise'
+      path: '/pre-analise'
+      fullPath: '/pre-analise'
+      preLoaderRoute: typeof AuthenticatedPreAnaliseRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/proposta/$token': {
@@ -393,6 +412,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBonusRoute: typeof AuthenticatedBonusRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
+  AuthenticatedPreAnaliseRoute: typeof AuthenticatedPreAnaliseRoute
   AuthenticatedSimulacaoIdRoute: typeof AuthenticatedSimulacaoIdRoute
   AuthenticatedSimulacaoNovaRoute: typeof AuthenticatedSimulacaoNovaRoute
 }
@@ -402,6 +422,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBonusRoute: AuthenticatedBonusRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
+  AuthenticatedPreAnaliseRoute: AuthenticatedPreAnaliseRoute,
   AuthenticatedSimulacaoIdRoute: AuthenticatedSimulacaoIdRoute,
   AuthenticatedSimulacaoNovaRoute: AuthenticatedSimulacaoNovaRoute,
 }

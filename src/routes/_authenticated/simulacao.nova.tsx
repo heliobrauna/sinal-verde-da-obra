@@ -187,8 +187,39 @@ type CubReference = {
   oficial: boolean;
 };
 
+// Valores que chegam da pré-análise pela renda para preencher uma simulação nova.
+type BuscaNova = {
+  editar?: string;
+  renda?: number;
+  credito?: number;
+  valorImovel?: number;
+  fgts?: number;
+  terreno?: number;
+  lote?: "proprio" | "compra";
+  juros?: number;
+  prazoFin?: number;
+  sistema?: SistemaAmortizacao;
+  seguro?: number;
+};
+
+function lerBusca(search: Record<string, unknown>): BuscaNova {
+  const numero = (chave: string) => {
+    const valor = Number(search[chave]);
+    return search[chave] !== undefined && Number.isFinite(valor) && valor >= 0 ? valor : undefined;
+  };
+  const busca: BuscaNova = {};
+  if (typeof search["editar"] === "string") busca.editar = search["editar"];
+  for (const chave of ["renda", "credito", "valorImovel", "fgts", "terreno", "juros", "prazoFin", "seguro"] as const) {
+    const valor = numero(chave);
+    if (valor !== undefined) busca[chave] = valor;
+  }
+  if (search["lote"] === "proprio" || search["lote"] === "compra") busca.lote = search["lote"];
+  if (search["sistema"] === "PRICE" || search["sistema"] === "SAC") busca.sistema = search["sistema"];
+  return busca;
+}
+
 export const Route = createFileRoute("/_authenticated/simulacao/nova")({
-  validateSearch: (search: Record<string, unknown>): { editar?: string } => typeof search['editar'] === "string" ? { editar: search['editar'] } : {},
+  validateSearch: (search: Record<string, unknown>): BuscaNova => lerBusca(search),
   head: () => ({
     meta: [
       { title: "Nova simulação | Sinal Verde da Obra" },
@@ -204,7 +235,8 @@ export const Route = createFileRoute("/_authenticated/simulacao/nova")({
 
 function Wizard() {
   const nav = useNavigate();
-  const { editar } = Route.useSearch();
+  const busca = Route.useSearch();
+  const { editar } = busca;
   const fetchCub = useServerFn(getResidentialCub);
   const fetchSelic = useServerFn(getSelicMeta);
   const fetchTr = useServerFn(getTrMensal);
@@ -309,6 +341,22 @@ function Wizard() {
       }),
     [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
+  // Pré-preenchimento vindo da pré-análise pela renda (só em simulação nova).
+  useEffect(() => {
+    if (editar || busca.renda === undefined) return;
+    setObjetivo("morar");
+    setRenda(busca.renda);
+    if (busca.credito !== undefined) setCredito(busca.credito);
+    if (busca.valorImovel !== undefined) setValorImovel(busca.valorImovel);
+    if (busca.fgts !== undefined) setFgtsUtilizado(busca.fgts);
+    if (busca.terreno !== undefined) setTerreno(busca.terreno);
+    if (busca.lote) setOrigemTerreno(busca.lote === "proprio" ? "investidor" : "compra");
+    if (busca.juros !== undefined) setJurosAnuais(busca.juros);
+    if (busca.prazoFin) setPrazoFinanciamento(busca.prazoFin);
+    if (busca.sistema) setSistemaAmortizacao(busca.sistema);
+    if (busca.seguro !== undefined) setSeguroTarifaMensal(busca.seguro);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (!editar) return;
     let active = true;
