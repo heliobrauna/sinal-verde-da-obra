@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Calculator, ArrowUpRight, Building2, Trash2, Pencil } from "lucide-react";
-import { NUMBER } from "@/lib/finance";
+import { ResumoSimulacao } from "@/components/app/ResumoSimulacao";
 import type { Tables } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -81,15 +81,14 @@ function Dashboard() {
       ) : (
         <div className="mt-10 grid gap-4 md:grid-cols-2">
           {items.map((item) => {
-            const result = item.resultado as { areaViavel?: number };
             return (
               <Card key={item.id} className="transition-colors hover:border-primary/50">
                 <CardContent className="p-5">
                   <div className="flex justify-between gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-display text-lg font-semibold">{item.nome}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {new Date(item.created_at).toLocaleDateString("pt-BR")}
+                        {item.objetivo === "vender" ? "Construir para vender" : "Construir para morar"} · {item.estado} · {new Date(item.updated_at ?? item.created_at).toLocaleDateString("pt-BR")}
                       </p>
                     </div>
                     <div className="flex gap-1">
@@ -129,17 +128,7 @@ function Dashboard() {
                       </Button>
                     </div>
                   </div>
-                  <div className="mt-7 flex items-end justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Área viável</p>
-                      <p className="mt-1 text-2xl font-bold">
-                        {NUMBER.format(result.areaViavel ?? 0)} m²
-                      </p>
-                    </div>
-                    <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                      Analisada
-                    </span>
-                  </div>
+                  <ResumoSimulacao item={item} />
                 </CardContent>
               </Card>
             );

@@ -192,10 +192,18 @@ function PrestacaoRenda({ prestacao, renda }: { prestacao: number; renda: number
   );
 }
 
-export function PropostaCliente({ data }: { data: PropostaData }) {
+export type SinalProposta = "verde" | "amarelo" | "vermelho";
+
+// Números-chave da proposta, usados também nos cards da lista de simulações.
+export function resumoProposta(data: PropostaData) {
   const custoTotal = data.custos.terreno + data.custos.construcao + data.custos.documentos + data.custos.juros;
   const comprometimento = data.renda > 0 ? (data.prestacao / data.renda) * 100 : 0;
-  const status: "verde" | "amarelo" | "vermelho" = comprometimento > LIMITE_RENDA ? "vermelho" : data.aporteArea > 0.005 ? "amarelo" : "verde";
+  const status: SinalProposta = comprometimento > LIMITE_RENDA ? "vermelho" : data.aporteArea > 0.005 ? "amarelo" : "verde";
+  return { custoTotal, comprometimento, status };
+}
+
+export function PropostaCliente({ data }: { data: PropostaData }) {
+  const { custoTotal, comprometimento, status } = resumoProposta(data);
   const sinal = {
     verde: { titulo: "Sinal verde!", texto: "A casa planejada cabe no orçamento e a prestação fica dentro do que o banco aceita." },
     amarelo: { titulo: "Sinal amarelo", texto: `A casa cabe, mas precisa de ${BRL.format(data.aporteArea)} a mais do seu bolso para chegar a ${m2(data.areaPlanejada)}.` },
