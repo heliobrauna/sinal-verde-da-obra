@@ -184,6 +184,8 @@ const PERCENTUAL_FINANCIADO_PARTE = 0.8;
 
 // Imposto de renda sobre ganho de capital de pessoa física (sem fatores de redução).
 const IR_GANHO_CAPITAL = 0.15;
+// Prazo de amortização usado nas estimativas de prestação (meses).
+const PRAZO_AMORTIZACAO = 360;
 
 // Na venda com lucro do construtor definido, o lucro total precisa cobrir encargos até a venda,
 // o retorno preferencial e as duas partes do excedente. Como o lucro também muda área e capital,
@@ -308,7 +310,11 @@ function calcular(input: SimulationInput) {
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
   // Após a obra: juros e TR sobre a dívida inteira (lote + obra), mais seguros e tarifa, até a venda.
   const jurosPosObra = (saldoLiberado * (trMensal + (1 + trMensal) * taxaMensal) + seguroTarifaMensal) * mesesAposObra;
-  const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / 360 * mesesAposObra);
+  const amortizacaoEstimada = Math.min(saldoLiberado, saldoLiberado / PRAZO_AMORTIZACAO * mesesAposObra);
+  // Primeira prestação depois da obra (SAC): amortização + TR e juros sobre a dívida + seguros e tarifa.
+  const prestacaoInicial = saldoLiberado > 0
+    ? saldoLiberado / PRAZO_AMORTIZACAO + saldoLiberado * (trMensal + (1 + trMensal) * taxaMensal) + seguroTarifaMensal
+    : 0;
   // Investidor: quem financia no próprio nome. Cada aporte tem um mês (0 = assinatura).
   const mesesObra = input.liberacoes.length;
   const mesVenda = mesesObra + mesesAposObra;
@@ -395,7 +401,7 @@ function calcular(input: SimulationInput) {
     financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,
     desembolsoAntesContrato, desembolsoAssinatura, desembolsoDuranteObra, desembolsoProprio, maiorEncargoMensal,
     taxaJurosAnual: input.jurosAnuais, taxaJurosMensalEquivalente: taxaMensalPercentual,
-    trMensal: input.trMensal, seguroTarifaMensal, jurosObraJuros, jurosObraTr, jurosObraSeguros, dividaFinal: saldoLiberado,
+    trMensal: input.trMensal, seguroTarifaMensal, jurosObraJuros, jurosObraTr, jurosObraSeguros, dividaFinal: saldoLiberado, prestacaoInicial, remuneracaoResponsavel: reservaLucro,
     prazoExecucaoMeses: input.liberacoes.length, liberacoesMensais,
     cronograma: input.stages.map((stage) => ({ ...stage, valor: financiamentoConstrucao * stage.percentual / 100 })),
   };

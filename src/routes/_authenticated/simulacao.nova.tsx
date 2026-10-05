@@ -537,6 +537,12 @@ function Wizard() {
                     <div className="mt-2 flex h-11 items-center rounded-md border bg-muted/40 px-3 font-semibold">{BRL.format(baseResult.entradaExigida)}</div>
                   </div>
                   {field("Valor do financiamento", credito, setCredito, true, HELP.financiamento)}
+                  {/* Financiamento menor que a entrada costuma ser digitação trocada com o simulador da Caixa. */}
+                  {credito > 0 && valorImovel > credito && credito < baseResult.entradaExigida && (
+                    <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive md:col-span-3">
+                      O financiamento ({BRL.format(credito)}) está menor que a entrada ({BRL.format(baseResult.entradaExigida)}). Os valores parecem invertidos: confira o valor do financiamento no simulador da Caixa.
+                    </p>
+                  )}
                 </div>
                 {objetivo === "vender" ? (
                   <p className="self-end rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">FGTS não é usado em obra para venda: ele se destina à moradia própria do titular, e usá-lo aqui comprometeria o saldo para a casa dele no futuro. A entrada é composta pelo ágio do terreno e por dinheiro.</p>

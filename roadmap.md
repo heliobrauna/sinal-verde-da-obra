@@ -51,3 +51,6 @@
 - [x] Incluir o terreno no custo total também para morar e simplificar o relatório como proposta ao cliente
 - [x] FGTS liberado com as medições: caixa de 10% para iniciar a obra e "Verba disponível para obra"
 - [x] Não usar FGTS em obra para vender (destinado à moradia própria do titular)
+- [x] Separar visão do construtor e proposta ao cliente com infográficos e impressão em PDF
+- [x] Avisar quando entrada e financiamento parecem invertidos
+- [ ] Link público da proposta para o cliente abrir sem login

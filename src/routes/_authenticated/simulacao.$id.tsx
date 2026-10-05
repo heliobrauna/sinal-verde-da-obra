@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
+import { PropostaCliente, type PropostaData } from "@/components/app/PropostaCliente";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -94,6 +95,8 @@ type R = {
   lucroConstrutorDesejado?: number | null;
   corretagemLoteValor?: number;
   irGanhoLote?: number;
+  prestacaoInicial?: number;
+  remuneracaoResponsavel?: number;
 };
 type Row = [label: string, value: number | undefined];
 
@@ -102,6 +105,7 @@ const hasValue = (value: number | undefined): value is number => value !== undef
 const m2 = (value: number) => `${NUMBER.format(value)} m²`;
 
 export const Route = createFileRoute("/_authenticated/simulacao/$id")({
+  validateSearch: (search: Record<string, unknown>): { visao?: "cliente" } => (search["visao"] === "cliente" ? { visao: "cliente" } : {}),
   head: () => ({
     meta: [
       { title: "Resultado | Sinal Verde da Obra" },
@@ -139,19 +143,13 @@ function Rows({ title, rows, total }: { title: string; rows: Row[]; total?: Row 
   );
 }
 
-// Na proposta para morar, os números do construtor ficam recolhidos para o cliente ler só o essencial.
-function Detalhes({ recolher, children }: { recolher: boolean; children: ReactNode }) {
-  if (!recolher) return <div className="mt-8">{children}</div>;
-  return (
-    <details className="mt-8 rounded-lg border p-4 md:p-5">
-      <summary className="cursor-pointer select-none text-sm font-semibold text-primary">Detalhes para o construtor: contrato, custos, cronograma e liberações</summary>
-      <div className="mt-6">{children}</div>
-    </details>
-  );
-}
+// Honorários, administração e acompanhamento são ganhos do construtor: na proposta ao cliente,
+// entram em "Construção da casa" junto com a remuneração, sem revelar a margem.
+const DESPESAS_DO_CONSTRUTOR = new Set(["honorarios-entrada", "honorarios-saldo", "administracao", "acompanhamento"]);
 
 function Result() {
   const { id } = Route.useParams();
+  const { visao } = Route.useSearch();
   const nav = useNavigate();
   const [item, setItem] = useState<Tables<"simulacoes"> | null>(null);
   useEffect(() => {
@@ -188,20 +186,23 @@ function Result() {
   // Proposta para quem vai morar: o que o banco libera, FGTS, terreno e o bolso do cliente somam o custo total;
   // a verba do banco que sobra aparece como desconto para a soma fechar.
   const sobra = Math.max(r.saldoRecursos ?? 0, 0);
+  // Para morar, a remuneração do responsável sai da verba da obra e faz parte do custo do imóvel.
+  const remuneracao = vender ? 0 : (r.remuneracaoResponsavel ?? lucro);
+  const custoImovel = hasValue(custoComTerreno) ? custoComTerreno + remuneracao : undefined;
   const proposta = !vender && hasValue(custoComTerreno) && r.desembolsoProprio !== undefined && r.financiamentoConstrucao !== undefined;
   const pagamento: Row[] = [
     ["Financiamento do banco", (r.quitacaoLote ?? 0) + (r.financiamentoConstrucao ?? 0)],
     ["FGTS", r.fgtsNaEntrada],
     ["Terreno que já é seu (ágio)", r.agioNaEntrada],
     ["Dinheiro do seu bolso", r.desembolsoProprio],
-    ["Sobra da verba do banco (não gasta)", -sobra],
+    ["(−) Sobra da verba do banco", -sobra],
   ];
 
   const metrics = proposta
     ? [
-        { label: "Casa que cabe no orçamento", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
-        { label: "Custo total do imóvel (terreno + obra)", value: BRL.format(custoComTerreno ?? 0), detail: custoDetalhe },
-        { label: "Dinheiro do seu bolso", value: BRL.format(r.desembolsoProprio ?? 0), detail: "Além do financiamento, do FGTS e do terreno", tone: "text-secondary" },
+        { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
+        { label: "Custo total do imóvel", value: BRL.format(custoImovel ?? 0), detail: hasValue(remuneracao) ? `${custoDetalhe} + remuneração ${BRL.format(remuneracao)}` : custoDetalhe },
+        { label: "Dinheiro do cliente", value: BRL.format(r.desembolsoProprio ?? 0), detail: "Além do financiamento, do FGTS e do terreno", tone: "text-secondary" },
       ]
     : [
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
@@ -215,9 +216,47 @@ function Result() {
   ];
   const visibleMetrics = metrics.filter((metric) => metric.value !== undefined);
 
+  const despesas = r.despesas ?? [];
+  const despesasConstrutor = despesas.filter((x) => DESPESAS_DO_CONSTRUTOR.has(x.id)).reduce((sum, x) => sum + x.valor, 0);
+  const liberacoes = r.liberacoesMensais ?? [];
+  // A proposta usa só simulações salvas com o cálculo atual; as antigas precisam ser abertas e salvas de novo.
+  const dadosProposta: PropostaData | null =
+    !vender && r.prestacaoInicial !== undefined && r.desembolsoProprio !== undefined && r.financiamentoConstrucao !== undefined && hasValue(custoComTerreno)
+      ? {
+          nome: item.nome,
+          areaMin,
+          areaMax,
+          areaPlanejada: r.areaPlanejada ?? areaMin,
+          renda: item.renda_declarada,
+          custos: {
+            terreno: item.terreno_valor,
+            construcao: (r.custoConstrucao ?? 0) + r.extrasTotal + remuneracao + despesasConstrutor,
+            documentos: despesas.reduce((sum, x) => sum + x.valor, 0) - despesasConstrutor,
+            juros: r.jurosObra ?? 0,
+          },
+          // A verba do banco que sobra não é liberada: o banco entra só com o que a obra usa.
+          pagamento: {
+            banco: (r.quitacaoLote ?? 0) + r.financiamentoConstrucao - sobra,
+            fgts: r.fgtsNaEntrada ?? 0,
+            terreno: r.agioNaEntrada ?? 0,
+            bolso: r.desembolsoProprio,
+          },
+          folgaBanco: sobra,
+          aporteArea: r.aporteParaAreaPlanejada ?? 0,
+          antesContrato: r.desembolsoAntesContrato ?? 0,
+          assinatura: r.desembolsoAssinatura ?? 0,
+          caixaInicio: r.capitalGiro ?? 0,
+          mesesObra: r.prazoExecucaoMeses ?? liberacoes.length,
+          encargoInicial: liberacoes[0]?.encargo ?? 0,
+          encargoFinal: liberacoes[liberacoes.length - 1]?.encargo ?? 0,
+          prestacao: r.prestacaoInicial,
+        }
+      : null;
+  const verCliente = !vender && visao === "cliente";
+
   return (
     <AppShell>
-      <div className="flex justify-between">
+      <div className="flex justify-between print:hidden">
         <Button asChild variant="ghost">
           <Link to="/dashboard">
             <ArrowLeft />
@@ -250,6 +289,17 @@ function Result() {
           </AlertDialogContent>
         </AlertDialog></div>
       </div>
+      {!vender && (
+        <div className="mt-5 inline-flex rounded-lg border p-1 print:hidden" role="tablist" aria-label="Visão do resultado">
+          <Link to="/simulacao/$id" params={{ id }} search={{}} role="tab" aria-selected={!verCliente} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${verCliente ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "bg-primary text-primary-foreground"}`}>Visão do construtor</Link>
+          <Link to="/simulacao/$id" params={{ id }} search={{ visao: "cliente" }} role="tab" aria-selected={verCliente} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${verCliente ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>Proposta ao cliente</Link>
+        </div>
+      )}
+      {verCliente ? (
+        <div className="mt-6">
+          {dadosProposta ? <PropostaCliente data={dadosProposta} /> : <p className="rounded-lg border p-5 text-sm text-muted-foreground">Esta simulação foi salva com uma versão anterior do cálculo. Abra em <strong>Editar</strong> e salve de novo para gerar a proposta ao cliente.</p>}
+        </div>
+      ) : (<>
       <div className="mt-5">
         <p className="text-sm font-semibold text-primary">{vender ? "CONSTRUIR PARA VENDER" : "CONSTRUIR PARA MORAR"}</p>
         <h1 className="mt-2 text-3xl font-bold">{item.nome}</h1>
@@ -274,7 +324,7 @@ function Result() {
 
       {proposta && (
         <div className="mt-8 max-w-xl">
-          <Rows title="Como o imóvel é pago" rows={pagamento} total={["Custo total do imóvel", custoComTerreno]} />
+          <Rows title="Como o imóvel é pago" rows={pagamento} total={["Custo total do imóvel", custoImovel]} />
           {hasValue(r.aporteParaAreaPlanejada) && <p className="mt-2 text-xs text-muted-foreground">O dinheiro do seu bolso inclui {BRL.format(r.aporteParaAreaPlanejada)} para construir {hasValue(r.areaPlanejada) ? m2(r.areaPlanejada) : "a área planejada"}, acima do que o financiamento cobre.</p>}
           {hasValue(sobra) && <p className="mt-2 text-xs text-muted-foreground">Sobram {BRL.format(sobra)} da verba do banco: dá para ampliar a casa ou guardar para imprevistos.</p>}
           {r.dinheiroParaComecar !== undefined && (
@@ -349,7 +399,7 @@ function Result() {
         </section>
       )}
 
-      <Detalhes recolher={proposta}>
+      <div className="mt-8">
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="space-y-8">
           <Rows
@@ -392,6 +442,7 @@ function Result() {
               ["Terreno", item.terreno_valor],
               [hasValue(r.areaPlanejada) ? `Construção (${m2(r.areaPlanejada)})` : "Construção", r.custoConstrucao],
               ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
+              ["Remuneração do responsável", remuneracao],
               ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
               ...(r.jurosObraJuros !== undefined
                 ? [
@@ -401,7 +452,7 @@ function Result() {
                   ]
                 : [[hasValue(r.taxaJurosAnual) ? `Juros de obra (${NUMBER.format(r.taxaJurosAnual)}% a.a.)` : "Juros de obra", r.jurosObra] as Row]),
             ]}
-            total={["Custo total (terreno + obra)", custoComTerreno]}
+            total={hasValue(remuneracao) ? ["Custo total (terreno + obra + remuneração)", custoImovel] : ["Custo total (terreno + obra)", custoComTerreno]}
           />
           {r.primeiroImovelSfh && <p className="text-xs text-muted-foreground">Registros com desconto de 50% do Art. 290 da Lei 6.015/73 (primeiro imóvel pelo SFH).</p>}
         </div>
@@ -453,8 +504,9 @@ function Result() {
           </p>
         </section>
       )}
-      </Detalhes>
+      </div>
       <p className="mt-8 text-xs text-muted-foreground">Estimativas para decisão. Confirme valores com o banco, a prefeitura e o cartório.</p>
+      </>)}
     </AppShell>
   );
 }

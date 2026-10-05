@@ -194,6 +194,12 @@ describe("projeção financeira", () => {
     expect(dentro.obraContrato).toBe(350000);
   });
 
+  it("estima a primeira prestação depois da obra sobre a dívida inteira", () => {
+    const result = calculate({ ...input, trMensal: 0.15, seguroTarifaMensal: 80 });
+    const i = annualToMonthlyRate(10) / 100;
+    expect(result.prestacaoInicial).toBeCloseTo(400000 / 360 + 400000 * (0.0015 + 1.0015 * i) + 80);
+  });
+
   it("pré-preenche PCI até 320 m² e sugere 18 meses acima dessa área", () => {
     expect(suggestedExecutionMonths(70)).toBe(6);
     expect(suggestedExecutionMonths(320)).toBe(13);
