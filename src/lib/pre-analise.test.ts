@@ -4,7 +4,7 @@ import { faixaPorRenda, financiamentoPorParcela, jurosSugeridos, preAnalise, pra
 
 const base: PreAnaliseInput = {
   rendaFormal: 6000, rendaInformal: 0, idade: 30, cotistaFgts: false, fgts: 0, dinheiro: 1_000_000,
-  terreno: 0, terrenoProprio: false, sistema: "PRICE", jurosAnuais: null, seguroTarifaMensal: 100, custoM2: 0,
+  terreno: 0, terrenoProprio: false, sistema: "PRICE", jurosAnuais: null, seguroTarifaMensal: 100, precoM2Pronto: 0,
 };
 
 describe("pré-análise pela renda", () => {
@@ -51,12 +51,12 @@ describe("pré-análise pela renda", () => {
   });
 
   it("lote próprio forma a entrada e o banco financia só a obra", () => {
-    const r = preAnalise({ ...base, rendaFormal: 15000, dinheiro: 0, terreno: 200_000, terrenoProprio: true, custoM2: 2500 });
+    const r = preAnalise({ ...base, rendaFormal: 15000, dinheiro: 0, terreno: 200_000, terrenoProprio: true, precoM2Pronto: 4000 });
     expect(r.limitadoPor).toBe("renda");
     expect(r.valorImovel).toBeCloseTo(r.capacidade + 200_000, 6);
     expect(r.financiamento).toBeCloseTo(r.capacidade, 6);
     expect(r.agioNaEntrada).toBe(200_000);
-    expect(r.area).toBeCloseTo(r.capacidade / 2500, 6);
+    expect(r.area).toBeCloseTo(r.valorImovel / 4000, 6);
   });
 
   it("respeita o teto do imóvel da faixa", () => {

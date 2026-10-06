@@ -23,6 +23,8 @@ type ResultadoProposta = {
   fgtsNaEntrada?: number;
   agioNaEntrada?: number;
   desembolsoProprio?: number;
+  dinheiroEntrada?: number;
+  complementoLote?: number;
   aporteParaAreaPlanejada?: number;
   desembolsoAntesContrato?: number;
   desembolsoAssinatura?: number;
@@ -67,6 +69,15 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
       fgts: r.fgtsNaEntrada ?? 0,
       terreno: r.agioNaEntrada ?? 0,
       bolso: r.desembolsoProprio,
+    },
+    // O que sai do bolso, por destino: a entrada em dinheiro vai para a obra (faz parte do valor do imóvel);
+    // taxas e documentos vêm por fora, como os juros da obra e o acréscimo para a área planejada.
+    bolsoDetalhe: {
+      entrada: r.dinheiroEntrada ?? 0,
+      terreno: r.complementoLote ?? 0,
+      taxas: Math.max((r.desembolsoAntesContrato ?? 0) + (r.desembolsoAssinatura ?? 0) - (r.dinheiroEntrada ?? 0) - (r.complementoLote ?? 0), 0),
+      juros: r.jurosObra ?? 0,
+      area: r.aporteParaAreaPlanejada ?? 0,
     },
     folgaBanco: sobra,
     aporteArea: r.aporteParaAreaPlanejada ?? 0,

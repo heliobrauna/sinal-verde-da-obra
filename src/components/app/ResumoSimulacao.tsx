@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { NUMBER } from "@/lib/finance";
 import { montarProposta } from "@/lib/proposta";
 import { resumoProposta, type SinalProposta } from "@/components/app/PropostaCliente";
@@ -46,6 +47,8 @@ export function ResumoSimulacao({ item }: { item: Tables<"simulacoes"> }) {
   } else if (custoComTerreno) {
     numeros.push({ rotulo: "Custo total", valor: BRL.format(custoComTerreno) });
   }
+  // Simulações salvas com uma versão anterior do cálculo não guardam todos os números.
+  const antiga = item.objetivo === "vender" ? r.valorVenda === undefined : !proposta;
   return (
     <>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
@@ -70,6 +73,13 @@ export function ResumoSimulacao({ item }: { item: Tables<"simulacoes"> }) {
             ))}
           </dl>
         </div>
+      )}
+      {antiga && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Calculada numa versão anterior.{" "}
+          <Link to="/simulacao/nova" search={{ editar: item.id }} className="font-semibold text-primary underline-offset-2 hover:underline">Abra e salve de novo</Link>{" "}
+          para ver todos os números.
+        </p>
       )}
     </>
   );

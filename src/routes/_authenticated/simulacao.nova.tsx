@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app/AppShell";
 import { NumericInput } from "@/components/app/NumericInput";
@@ -255,14 +255,14 @@ function Wizard() {
   const [saldo, setSaldo] = useState(0);
   const [renda, setRenda] = useState(0);
   const [credito, setCredito] = useState(0);
-  const [estado, setEstado] = useState("CE");
-  const [padrao, setPadrao] = useState<"baixo" | "normal" | "alto">("normal");
+  const [estado, setEstado] = useState("");
+  const [padrao, setPadrao] = useState<"baixo" | "normal" | "alto" | "">("");
   const [cubRef, setCubRef] = useState<CubReference | null>(null);
   const [savedCub, setSavedCub] = useState(0);
   const [cubLoading, setCubLoading] = useState(false);
   const [valorImovel, setValorImovel] = useState(0);
   const [fgtsUtilizado, setFgtsUtilizado] = useState(0);
-  const [jurosAnuais, setJurosAnuais] = useState(10);
+  const [jurosAnuais, setJurosAnuais] = useState(0);
   const [trMensal, setTrMensal] = useState(0);
   const [trFonte, setTrFonte] = useState("");
   const [seguroTarifaMensal, setSeguroTarifaMensal] = useState(0);
@@ -289,7 +289,24 @@ function Wizard() {
   const [primeiroImovelSfh, setPrimeiroImovelSfh] = useState(false);
   const [expenseOverrides, setExpenseOverrides] = useState<Record<string, number>>({});
   const [erro, setErro] = useState("");
+  const [erroVez, setErroVez] = useState(0);
+  // Mostra o erro e rola até ele mesmo quando a mensagem se repete.
+  function mostrarErro(mensagem: string) { setErro(mensagem); setErroVez((vez) => vez + 1); }
   const cub = cubRef?.valor ?? savedCub;
+  const topoRef = useRef<HTMLDivElement>(null);
+  const tituloRef = useRef<HTMLHeadingElement>(null);
+  const erroRef = useRef<HTMLParagraphElement>(null);
+  const primeiraEtapa = useRef(true);
+  // Ao trocar de etapa, volta para o início do preenchimento; o foco vai ao título (sem abrir o teclado no celular).
+  useEffect(() => {
+    if (primeiraEtapa.current) { primeiraEtapa.current = false; return; }
+    topoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    tituloRef.current?.focus({ preventScroll: true });
+  }, [step]);
+  // O aviso de erro fica junto do botão; rola até ele para não passar despercebido.
+  useEffect(() => {
+    if (erro) erroRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [erro, erroVez]);
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
     () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
@@ -362,7 +379,7 @@ function Wizard() {
     let active = true;
     supabase.from("simulacoes").select("*").eq("id", editar).single().then(({ data, error }) => {
       if (!active) return;
-      if (error || !data) { setErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
+      if (error || !data) { mostrarErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
        const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number>; cubReferencia?: CubReference; primeiroImovelSfh?: boolean; corretagemLote?: number; custoAquisicaoLote?: number };
       setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
       setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
@@ -418,8 +435,10 @@ function Wizard() {
   }, [loadingEdit, selicFonte, fetchSelic]);
   useEffect(() => {
     let active = true;
-    setCubLoading(true);
     setCubRef(null);
+    // Sem estado e padrão escolhidos não há CUB de referência (evita comparar com o estado errado).
+    if (!estado || !padrao) { setCubLoading(false); return; }
+    setCubLoading(true);
     fetchCub({ data: { estado, padrao } })
       .then((data) => {
         if (active) setCubRef(data);
@@ -444,9 +463,103 @@ function Wizard() {
       setLiberacoes(pciReleases(suggested));
     }
   }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
+  // Rascunho no navegador: o preenchimento sobrevive a recarregar a página ou sair sem salvar.
+  const chaveRascunho = `sinal-verde:rascunho:${editar ?? "nova"}`;
+  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides }), [step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides]);
+  const [tocado, setTocado] = useState(false);
+  const [rascunho, setRascunho] = useState<{ salvoEm: number; dados: Partial<typeof instantaneo> } | null>(null);
+  useEffect(() => {
+    // Vindo da pré-análise, os dados novos têm prioridade sobre um rascunho antigo.
+    if (busca.renda !== undefined) return;
+    try {
+      const salvo = localStorage.getItem(chaveRascunho);
+      if (salvo) setRascunho(JSON.parse(salvo));
+    } catch {
+      // Sem acesso ao armazenamento do navegador: segue sem rascunho.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveRascunho]);
+  useEffect(() => {
+    if (!tocado) return;
+    try {
+      localStorage.setItem(chaveRascunho, JSON.stringify({ salvoEm: Date.now(), dados: instantaneo }));
+    } catch {
+      // Armazenamento cheio ou bloqueado: o rascunho é só uma conveniência.
+    }
+  }, [instantaneo, tocado, chaveRascunho]);
+  useEffect(() => {
+    if (!tocado) return;
+    const avisar = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [tocado]);
+  function descartarRascunho() {
+    try { localStorage.removeItem(chaveRascunho); } catch { /* sem armazenamento */ }
+    setRascunho(null);
+  }
+  function restaurarRascunho() {
+    const d = rascunho?.dados;
+    if (!d) return;
+    if (d.step !== undefined) setStep(d.step);
+    if (d.nome !== undefined) setNome(d.nome);
+    if (d.terreno !== undefined) setTerreno(d.terreno);
+    if (d.situacao !== undefined) setSituacao(d.situacao);
+    if (d.origemTerreno !== undefined) setOrigemTerreno(d.origemTerreno);
+    if (d.selicAnual !== undefined) setSelicAnual(d.selicAnual);
+    if (d.selicFonte !== undefined) setSelicFonte(d.selicFonte);
+    if (d.premioInvestidor !== undefined) setPremioInvestidor(d.premioInvestidor);
+    if (d.corretagemLote !== undefined) setCorretagemLote(d.corretagemLote);
+    if (d.custoAquisicaoLote !== undefined) setCustoAquisicaoLote(d.custoAquisicaoLote);
+    if (d.lucroConstrutor !== undefined) setLucroConstrutor(d.lucroConstrutor);
+    if (d.saldo !== undefined) setSaldo(d.saldo);
+    if (d.renda !== undefined) setRenda(d.renda);
+    if (d.credito !== undefined) setCredito(d.credito);
+    if (d.estado !== undefined) setEstado(d.estado);
+    if (d.padrao !== undefined) setPadrao(d.padrao);
+    if (d.savedCub !== undefined) setSavedCub(d.savedCub);
+    if (d.valorImovel !== undefined) setValorImovel(d.valorImovel);
+    if (d.fgtsUtilizado !== undefined) setFgtsUtilizado(d.fgtsUtilizado);
+    if (d.jurosAnuais !== undefined) setJurosAnuais(d.jurosAnuais);
+    if (d.trMensal !== undefined) setTrMensal(d.trMensal);
+    if (d.trFonte !== undefined) setTrFonte(d.trFonte);
+    if (d.seguroTarifaMensal !== undefined) setSeguroTarifaMensal(d.seguroTarifaMensal);
+    if (d.sistemaAmortizacao !== undefined) setSistemaAmortizacao(d.sistemaAmortizacao);
+    if (d.prazoFinanciamento !== undefined) setPrazoFinanciamento(d.prazoFinanciamento);
+    if (d.maoDeObra !== undefined) setMaoDeObra(d.maoDeObra);
+    if (d.materiais !== undefined) setMateriais(d.materiais);
+    if (d.areaPlanejada !== undefined) setAreaPlanejada(d.areaPlanejada);
+    if (d.extras !== undefined) setExtras(d.extras);
+    if (d.cronograma !== undefined) setCronograma(d.cronograma);
+    if (d.prazoExecucao !== undefined) setPrazoExecucao(d.prazoExecucao);
+    if (d.liberacoes !== undefined) setLiberacoes(d.liberacoes);
+    if (d.prazoEditado !== undefined) setPrazoEditado(d.prazoEditado);
+    if (d.objetivo !== undefined) setObjetivo(d.objetivo);
+    if (d.lucro !== undefined) setLucro(d.lucro);
+    if (d.corretagem !== undefined) setCorretagem(d.corretagem);
+    if (d.prazo !== undefined) setPrazo(d.prazo);
+    if (d.participacaoInvestidor !== undefined) setParticipacaoInvestidor(d.participacaoInvestidor);
+    if (d.projetos !== undefined) setProjetos(d.projetos);
+    if (d.administracao !== undefined) setAdministracao(d.administracao);
+    if (d.honorarios !== undefined) setHonorarios(d.honorarios);
+    if (d.primeiroImovelSfh !== undefined) setPrimeiroImovelSfh(d.primeiroImovelSfh);
+    if (d.expenseOverrides !== undefined) setExpenseOverrides(d.expenseOverrides);
+    setRascunho(null);
+    setTocado(true);
+  }
+  // Qualquer digitação ou escolha dentro do formulário (exceto os botões de navegação) marca alterações.
+  function marcarTocado(event: React.SyntheticEvent) {
+    if (!(event.target instanceof Element) || event.target.closest("[data-navegacao]")) return;
+    if (event.type === "click" && !event.target.closest("button, label, [role=checkbox]")) return;
+    // Marca fora do evento: atualizar estado durante a captura fazia o 1º caractere digitado se perder.
+    if (!tocado) setTimeout(() => setTocado(true), 0);
+  }
   function stepError(n: number) {
     if (n === 1 && (!credito || !renda || !valorImovel)) return "Informe a renda, o valor do imóvel e o valor do financiamento para continuar.";
     if (n === 1 && valorImovel < credito) return "O valor do imóvel não pode ser menor que o valor do financiamento.";
+    if (n === 2 && !estado) return "Escolha o estado: ele define as taxas de cartório e o CUB de comparação.";
+    if (n === 2 && !padrao) return "Escolha o padrão de acabamento.";
+    if (n === 2 && jurosAnuais <= 0) return "Informe a taxa de juros efetiva anual do simulador da Caixa.";
+    if (n === 2 && seguroTarifaMensal <= 0) return "Informe seguros (MIP e DFI) e tarifa por mês do simulador da Caixa.";
     if (n === 2 && custoReal <= 0) return "Informe mão de obra e materiais por m² para calcular a área.";
     return "";
   }
@@ -454,7 +567,7 @@ function Wizard() {
   function goTo(target: number) {
     for (let n = 1; n < target; n++) {
       const message = stepError(n);
-      if (message) { setErro(message); setStep(n); return; }
+      if (message) { mostrarErro(message); setStep(n); return; }
     }
     setErro("");
     // A viabilidade (etapa 3) começa com a área viável mínima; o cronograma fica por último.
@@ -467,14 +580,18 @@ function Wizard() {
   async function save() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
+    for (let n = 1; n <= 3; n++) {
+      const message = stepError(n);
+      if (message) { mostrarErro(message); setStep(n); return; }
+    }
     if (corretagem < 0 || corretagem >= 100 || participacaoInvestidor < 0 || participacaoInvestidor > 100 || prazo < 0) {
-      setErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
+      mostrarErro("Revise a corretagem, a participação do investidor e os meses até a venda."); return;
     }
     if (valorImovel < credito || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
-      setErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
+      mostrarErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
     const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
-    if (custoReal <= 0) { setErro("Informe o custo real por m²."); setStep(2); return; }
+    if (custoReal <= 0) { mostrarErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
         terreno_valor: terreno,
@@ -500,12 +617,14 @@ function Wizard() {
       .select("id")
       .single();
     if (error || !data) {
-      setErro("Não foi possível salvar. Revise os dados e tente novamente.");
+      mostrarErro("Não foi possível salvar. Revise os dados e tente novamente.");
       return;
     }
+    descartarRascunho();
+    setTocado(false);
     nav({ to: "/simulacao/$id", params: { id: data.id } });
   }
-  const field = (label: string, value: number, set: (n: number) => void, monetary = true, help?: string) => (
+  const field = (label: string, value: number, set: (n: number) => void, monetary = true, help?: string, placeholder?: string) => (
     <div>
       <div className="flex items-center gap-1.5"><Label>{label}</Label>{help && <InfoTip label={label} text={help} />}</div>
       <NumericInput
@@ -515,6 +634,7 @@ function Wizard() {
         decimals={2}
         monetary={monetary}
         onValueChange={set}
+        {...(placeholder ? { placeholder } : {})}
       />
     </div>
   );
@@ -523,10 +643,10 @@ function Wizard() {
     <AppShell>
       <div className="mx-auto grid max-w-3xl gap-6 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_280px]">
       <LivePanel result={result} objetivo={objetivo} />
-      <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+      <div ref={topoRef} className="min-w-0 scroll-mt-20 lg:col-start-1 lg:row-start-1">
         <p className="text-sm font-semibold text-primary">{editar ? "EDITAR SIMULAÇÃO" : "NOVA SIMULAÇÃO"}</p>
         <div className="mt-3 flex items-end justify-between gap-4">
-          <h1 className="text-3xl font-bold">
+          <h1 ref={tituloRef} tabIndex={-1} className="text-3xl font-bold outline-none">
             {
               [
                 "Ponto de partida",
@@ -549,7 +669,16 @@ function Wizard() {
             );
           })}
         </nav>
-        <Card className="mt-8">
+        {rascunho && (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-secondary/40 bg-secondary/10 p-4 text-sm">
+            <p>Há um preenchimento não salvo de {new Date(rascunho.salvoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={descartarRascunho}>Descartar</Button>
+              <Button type="button" size="sm" onClick={restaurarRascunho}>Continuar de onde parei</Button>
+            </div>
+          </div>
+        )}
+        <Card className="mt-8" onInputCapture={marcarTocado} onClickCapture={marcarTocado}>
           <CardContent className="p-6 md:p-8">
             {step === 1 && (
               <div className="grid gap-5 md:grid-cols-2">
@@ -634,6 +763,7 @@ function Wizard() {
                       value={estado}
                       onChange={(e) => setEstado(e.target.value)}
                     >
+                      <option value="" disabled>Selecione o estado</option>
                       {ufs.map((x) => (
                         <option key={x}>{x}</option>
                       ))}
@@ -646,6 +776,7 @@ function Wizard() {
                       value={padrao}
                       onChange={(e) => setPadrao(e.target.value as typeof padrao)}
                     >
+                      <option value="" disabled>Selecione o padrão</option>
                       <option value="baixo">Baixo</option>
                       <option value="normal">Normal</option>
                       <option value="alto">Alto</option>
@@ -661,6 +792,8 @@ function Wizard() {
                         </>
                       ) : cub ? (
                         BRL.format(cub)
+                      ) : !estado || !padrao ? (
+                        <span className="font-normal text-muted-foreground">Escolha o estado e o padrão</span>
                       ) : (
                         "Referência indisponível"
                       )}
@@ -680,9 +813,9 @@ function Wizard() {
                       </p>
                     )}
                   </div>
-                   {field("Taxa de juros efetiva anual (% a.a. — simulador Caixa)", jurosAnuais, setJurosAnuais, false, HELP.juros)}
+                   {field("Taxa de juros efetiva anual (% a.a. — simulador Caixa)", jurosAnuais, setJurosAnuais, false, HELP.juros, "Copie do simulador da Caixa")}
                   {field("TR mensal (%)", trMensal, (value) => { setTrMensal(value); setTrFonte(trFonte || "informada manualmente"); }, false, HELP.tr)}
-                  {field("Seguros MIP/DFI e tarifa por mês", seguroTarifaMensal, setSeguroTarifaMensal, true, HELP.seguros)}
+                  {field("Seguros MIP/DFI e tarifa por mês", seguroTarifaMensal, setSeguroTarifaMensal, true, HELP.seguros, "Copie do simulador da Caixa")}
                   <div>
                     <div className="flex items-center gap-1.5"><Label>Sistema de amortização</Label><InfoTip label="Sistema de amortização" text={HELP.sistema} /></div>
                     <select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={sistemaAmortizacao} onChange={(e) => setSistemaAmortizacao(e.target.value as SistemaAmortizacao)}>
@@ -886,8 +1019,8 @@ function Wizard() {
                 </div>
               </div>
             )}
-            {erro && <p className="mt-5 text-sm text-destructive">{erro}</p>}
-            <div className="mt-8 flex gap-3">
+            {erro && <p ref={erroRef} role="alert" className="mt-5 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{erro}</p>}
+            <div className="mt-8 flex gap-3" data-navegacao>
               {step > 1 && (
                 <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                   <ArrowLeft />

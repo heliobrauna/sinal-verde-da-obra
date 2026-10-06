@@ -14,6 +14,7 @@ export type PropostaData = {
   renda: number;
   custos: { terreno: number; construcao: number; documentos: number; juros: number };
   pagamento: { banco: number; fgts: number; terreno: number; bolso: number };
+  bolsoDetalhe: { entrada: number; terreno: number; taxas: number; juros: number; area: number };
   folgaBanco: number;
   aporteArea: number;
   antesContrato: number;
@@ -83,6 +84,33 @@ function CasaQueSeEnche({ pagamento }: { pagamento: PropostaData["pagamento"] })
             <span className="min-w-0 flex-1 text-zinc-600">{fonte.rotulo}</span>
             <span className="shrink-0 whitespace-nowrap font-semibold text-zinc-900">{BRL.format(pagamento[fonte.key])}</span>
             <span className="w-10 shrink-0 text-right text-xs text-zinc-500">{total > 0 ? pct((pagamento[fonte.key] / total) * 100) : ""}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export const PARTES_BOLSO = [
+  { key: "entrada", rotulo: "Entrada em dinheiro (vai para a obra)" },
+  { key: "terreno", rotulo: "Complemento do terreno" },
+  { key: "taxas", rotulo: "Documentos e taxas" },
+  { key: "juros", rotulo: "Juros durante a obra" },
+  { key: "area", rotulo: "A mais para a casa planejada" },
+] as const;
+
+// A entrada faz parte do valor do imóvel e é aplicada na obra; taxas e juros são pagos por fora.
+function DetalheBolso({ detalhe }: { detalhe: PropostaData["bolsoDetalhe"] }) {
+  const partes = PARTES_BOLSO.filter((parte) => detalhe[parte.key] > 0.005);
+  if (partes.length < 2) return null;
+  return (
+    <div className="mt-4 rounded-xl bg-amber-50 p-3 text-xs">
+      <p className="font-semibold text-zinc-900">O que sai do seu bolso</p>
+      <ul className="mt-2 space-y-1">
+        {partes.map((parte) => (
+          <li key={parte.key} className="flex justify-between gap-3">
+            <span className="min-w-0 text-zinc-600">{parte.rotulo}</span>
+            <span className="shrink-0 whitespace-nowrap font-semibold text-zinc-900">{BRL.format(detalhe[parte.key])}</span>
           </li>
         ))}
       </ul>
@@ -253,6 +281,7 @@ export function PropostaCliente({ data }: { data: PropostaData }) {
           </Bloco>
           <Bloco titulo="Quem paga cada parte">
             <CasaQueSeEnche pagamento={data.pagamento} />
+            <DetalheBolso detalhe={data.bolsoDetalhe} />
             {data.folgaBanco > 0.005 && <p className="mt-4 text-xs text-zinc-500">O seu crédito ainda tem folga de {BRL.format(data.folgaBanco)} para imprevistos ou para ampliar a casa.</p>}
           </Bloco>
         </div>

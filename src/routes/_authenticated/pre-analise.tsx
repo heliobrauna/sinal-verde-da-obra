@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Info } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { NumericInput } from "@/components/app/NumericInput";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BRL, NUMBER, type SistemaAmortizacao } from "@/lib/finance";
 import { COMPROMETIMENTO_RENDA, jurosSugeridos, faixaPorRenda, preAnalise } from "@/lib/pre-analise";
 
@@ -39,13 +40,13 @@ function PreAnalise() {
   const [dinheiro, setDinheiro] = useState(0);
   const [terreno, setTerreno] = useState(0);
   const [terrenoProprio, setTerrenoProprio] = useState(true);
-  const [custoM2, setCustoM2] = useState(0);
+  const [precoM2Pronto, setPrecoM2Pronto] = useState(0);
   const [sistema, setSistema] = useState<SistemaAmortizacao>("PRICE");
   const [jurosManual, setJurosManual] = useState<number | null>(null);
   const [seguroTarifa, setSeguroTarifa] = useState(100);
   const r = useMemo(
-    () => preAnalise({ rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, terrenoProprio, sistema, jurosAnuais: jurosManual, seguroTarifaMensal: seguroTarifa, custoM2 }),
-    [rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, terrenoProprio, sistema, jurosManual, seguroTarifa, custoM2],
+    () => preAnalise({ rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, terrenoProprio, sistema, jurosAnuais: jurosManual, seguroTarifaMensal: seguroTarifa, precoM2Pronto }),
+    [rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, terrenoProprio, sistema, jurosManual, seguroTarifa, precoM2Pronto],
   );
   const jurosFaixa = jurosSugeridos(faixaPorRenda(rendaFormal + rendaInformal), cotistaFgts);
   const pronto = r.renda > 0 && r.prazo > 0 && r.valorImovel > 0;
@@ -84,7 +85,23 @@ function PreAnalise() {
                 ))}
               </div>
             </div>
-            {field("Custo da obra por m² (opcional)", custoM2, setCustoM2, { help: "Mão de obra + materiais, para estimar a área." })}
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Label>Preço do m² de casa pronta na região (opcional)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" aria-label="Como achar o preço do m²" className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary">
+                      <Info className="size-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 text-sm leading-relaxed">
+                    Veja anúncios de casas parecidas no bairro e divida o preço pela área. Exemplo: casa de 100 m² anunciada por R$ 350 mil → R$ 3.500 por m². Use a média de 3 ou 4 anúncios. Serve para mostrar ao cliente o tamanho de casa que o valor compra na região.
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <NumericInput className="mt-2 h-11" value={precoM2Pronto} decimals={2} monetary onValueChange={setPrecoM2Pronto} />
+              <p className="mt-1.5 text-xs text-muted-foreground">Terreno + construção, como nos anúncios.</p>
+            </div>
             <div>
               <Label>Sistema de amortização</Label>
               <select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={sistema} onChange={(e) => setSistema(e.target.value as SistemaAmortizacao)}>
@@ -117,7 +134,8 @@ function PreAnalise() {
                 <>
                   <p className="mt-6 text-sm text-muted-foreground">Imóvel possível (terreno + obra)</p>
                   <p className="text-4xl font-bold">{BRL.format(r.valorImovel)}</p>
-                  {r.area > 0 && <p className="mt-1 text-muted-foreground">cerca de <strong className="text-foreground">{NUMBER.format(Math.floor(r.area))} m²</strong> de casa com {BRL.format(r.verbaObra)} para a obra</p>}
+                  {r.area > 0 && <p className="mt-1 text-muted-foreground">equivale a uma casa pronta de cerca de <strong className="text-foreground">{NUMBER.format(Math.floor(r.area))} m²</strong> nessa região</p>}
+                  {terreno > 0 && <p className="mt-1 text-sm text-muted-foreground">{BRL.format(r.verbaObra)} para construir (imóvel − terreno)</p>}
                   <dl className="mt-6 grid gap-3 text-sm">
                     <Linha rotulo="Financiamento do banco" valor={r.financiamento} />
                     <Linha rotulo="Entrada" valor={r.entrada} />
@@ -147,7 +165,7 @@ function PreAnalise() {
                 {r.loteAcimaDoLimiteBanco && <p className="text-amber-400">O banco quita o lote comprado até 30% do contrato; o que passar disso sai da entrada.</p>}
                 {rendaInformal > 0 && <p className="text-muted-foreground">A renda informal depende de comprovação; sem ela o valor cai.</p>}
                 {fgts > 0 && <p className="text-muted-foreground">FGTS só para o primeiro imóvel residencial do titular na cidade, com 3 anos de trabalho com FGTS somados.</p>}
-                <p className="text-muted-foreground">A área não desconta documentação, impostos e juros da obra, e o cliente precisa de dinheiro para começar (cerca de 10% da obra), que volta com as medições. A simulação completa calcula tudo isso.</p>
+                <p className="text-muted-foreground">Documentação, impostos e juros da obra são pagos à parte, e o cliente precisa de dinheiro para começar (cerca de 10% da obra), que volta com as medições. A simulação completa calcula tudo isso e a área exata a construir.</p>
                 <Button asChild className="mt-2 w-full">
                   <Link
                     to="/simulacao/nova"

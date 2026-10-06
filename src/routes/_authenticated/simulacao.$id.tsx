@@ -257,7 +257,7 @@ function Result() {
     ? [
         { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
         { label: "Custo total do imóvel", value: BRL.format(custoImovel ?? 0), detail: hasValue(remuneracao) ? `${custoDetalhe} + remuneração ${BRL.format(remuneracao)}` : custoDetalhe },
-        { label: "Dinheiro do cliente", value: BRL.format(r.desembolsoProprio ?? 0), detail: "Além do financiamento, do FGTS e do terreno", tone: "text-secondary" },
+        { label: "Dinheiro do cliente", value: BRL.format(r.desembolsoProprio ?? 0), detail: hasValue(r.dinheiroEntrada) ? `Entrada em dinheiro ${BRL.format(r.dinheiroEntrada)} (vai para a obra) + ${BRL.format((r.desembolsoProprio ?? 0) - r.dinheiroEntrada)} de taxas, cartório e encargos (detalhe abaixo)` : "Taxas, cartório e encargos: a entrada já está coberta pelo terreno ou FGTS", tone: "text-secondary" },
       ]
     : [
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },

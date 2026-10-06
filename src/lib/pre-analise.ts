@@ -72,7 +72,8 @@ export type PreAnaliseInput = {
   // Taxa nominal anual; null usa a taxa sugerida da faixa.
   jurosAnuais: number | null;
   seguroTarifaMensal: number;
-  custoM2: number;
+  // Preço médio do m² de casa pronta na região (terreno + construção), para traduzir o valor em tamanho.
+  precoM2Pronto: number;
 };
 
 export function preAnalise(input: PreAnaliseInput) {
@@ -108,9 +109,9 @@ export function preAnalise(input: PreAnaliseInput) {
   // A prestação cresce em linha reta com a dívida; seguros e tarifa entram inteiros.
   const seguroTarifa = Math.max(input.seguroTarifaMensal, 0);
   const prestacao = financiamento > 0 && capacidade > 0 ? seguroTarifa + (parcelaMaxima - seguroTarifa) * financiamento / capacidade : 0;
-  // Verba da obra = imóvel - terreno; a área ainda não desconta documentação e juros da obra.
+  // Verba da obra = imóvel - terreno. A área equivalente usa o preço de casa pronta, que já inclui o terreno.
   const verbaObra = Math.max(valorImovel - terreno, 0);
-  const area = input.custoM2 > 0 ? verbaObra / input.custoM2 : 0;
+  const area = input.precoM2Pronto > 0 ? valorImovel / input.precoM2Pronto : 0;
   return {
     renda, faixa, jurosAnuais, jurosEfetivos, prazo, parcelaMaxima, capacidade,
     limites, limitadoPor, valorImovel, financiamento, entrada,
