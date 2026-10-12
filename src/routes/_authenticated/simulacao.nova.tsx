@@ -105,11 +105,11 @@ const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a ob
 type ModalidadeTerreno = "ctp" | "atc";
 const MODALIDADE_NOTA: Record<ModalidadeTerreno, string> = {
   ctp: "Lote quitado e registrado no nome de quem vai financiar: o cliente que vai morar, o investidor ou o próprio construtor, quando é ele quem financia. O valor inteiro conta como entrada (ágio) e não há ITBI nem registro de compra.",
-  atc: "O lote passa para o nome de quem financia no contrato: lote de loteadora ainda sendo pago, de terceiro ou do construtor. O que já foi pago conta como entrada; o banco paga o restante ao vendedor na assinatura (até 30% do contrato). Há ITBI e registro.",
+  atc: "O lote passa para o nome de quem financia no contrato: lote de loteadora ainda sendo pago, de terceiro ou do construtor. A diferença entre o preço e o saldo devedor é o ágio e conta como entrada; o banco quita o saldo na assinatura (até 30% do contrato). Há ITBI e registro.",
 };
 const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const HELP = {
-  jaPagoLote: "Parte do preço que quem vai financiar já pagou ao vendedor (sinal ou parcelas da loteadora). Conta como entrada; o restante o banco paga ao vendedor na assinatura. Zero se ainda não pagou nada.",
+  saldoLote: "Quanto falta pagar hoje para quitar o lote (saldo devedor informado pela loteadora ou pelo vendedor). A diferença até o preço do terreno é o ágio e conta como entrada; o banco quita esse saldo na assinatura. Juros e encargos já pagos não entram na conta.",
   sistema: "Use o mesmo do simulador da Caixa. No PRICE a parcela é fixa; no SAC a primeira é a maior e as seguintes diminuem. Vale para depois da obra.",
   prazo: "Prazo de pagamento do financiamento no simulador da Caixa (até 420 meses). A prestação estimada usa este prazo, sem a TR, como o simulador.",
   juros: "Taxa efetiva anual mostrada pelo simulador da Caixa. Na fase de obra, os juros mensais são a taxa nominal ÷ 12, cobrados sobre a dívida já liberada (lote + parcelas medidas).",
@@ -326,11 +326,11 @@ function Wizard() {
   const [temInvestidor, setTemInvestidor] = useState(true);
   const [entradaDepositada, setEntradaDepositada] = useState(false);
   const [modalidadeTerreno, setModalidadeTerreno] = useState<ModalidadeTerreno>("ctp");
-  const [jaPagoLote, setJaPagoLote] = useState(0);
+  const [saldoLote, setSaldoLote] = useState(0);
   const [vendedorConstrutor, setVendedorConstrutor] = useState(false);
   // CTP: lote quitado, sem saldo. ATC: o saldo é o que falta pagar ao vendedor.
   const situacao: "quitado" | "financiado" = modalidadeTerreno === "atc" ? "financiado" : "quitado";
-  const saldo = modalidadeTerreno === "atc" ? Math.max(terreno - jaPagoLote, 0) : 0;
+  const saldo = modalidadeTerreno === "atc" ? Math.max(saldoLote, 0) : 0;
   const origemTerreno: OrigemTerreno = modalidadeTerreno === "atc" && vendedorConstrutor ? "construtor" : "investidor";
   const [renda, setRenda] = useState(0);
   const [credito, setCredito] = useState(0);
@@ -493,11 +493,11 @@ function Wizard() {
        setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
       setPrimeiroImovelSfh(saved.primeiroImovelSfh ?? false);
       // Registros antigos: próprio quitado = CTP; próprio com saldo, do construtor ou de terceiro = ATC.
-      const lote = saved as { modalidadeTerreno?: ModalidadeTerreno; jaPagoLote?: number; vendedorConstrutor?: boolean };
+      const lote = saved as { modalidadeTerreno?: ModalidadeTerreno; saldoLote?: number; jaPagoLote?: number; vendedorConstrutor?: boolean };
       const origemSalva = saved.origemTerreno ?? "investidor";
       const saldoSalvo = data.saldo_devedor_terreno ?? 0;
       setModalidadeTerreno(lote.modalidadeTerreno ?? (origemSalva === "investidor" && (data.terreno_situacao !== "financiado" || saldoSalvo <= 0) ? "ctp" : "atc"));
-      setJaPagoLote(lote.jaPagoLote ?? (origemSalva === "investidor" ? Math.max(data.terreno_valor - saldoSalvo, 0) : 0));
+      setSaldoLote(lote.saldoLote ?? (lote.jaPagoLote !== undefined ? Math.max(data.terreno_valor - lote.jaPagoLote, 0) : origemSalva === "investidor" ? saldoSalvo : data.terreno_valor));
       setVendedorConstrutor(lote.vendedorConstrutor ?? origemSalva === "construtor");
       setPremioInvestidor(saved.premioInvestidor ?? 5);
       setCorretagemLote(saved.corretagemLote ?? 5); setCustoAquisicaoLote(saved.custoAquisicaoLote ?? 0);
@@ -567,7 +567,7 @@ function Wizard() {
   }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   // Rascunho no navegador: o preenchimento sobrevive a recarregar a página ou sair sem salvar.
   const chaveRascunho = `sinal-verde:rascunho:${editar ?? "nova"}`;
-  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, modalidadeTerreno, jaPagoLote, vendedorConstrutor, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada }), [step, nome, terreno, modalidadeTerreno, jaPagoLote, vendedorConstrutor, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada]);
+  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, modalidadeTerreno, saldoLote, vendedorConstrutor, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada }), [step, nome, terreno, modalidadeTerreno, saldoLote, vendedorConstrutor, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada]);
   const [tocado, setTocado] = useState(false);
   const [rascunho, setRascunho] = useState<{ salvoEm: number; dados: Partial<typeof instantaneo> } | null>(null);
   useEffect(() => {
@@ -606,7 +606,7 @@ function Wizard() {
     if (d.nome !== undefined) setNome(d.nome);
     if (d.terreno !== undefined) setTerreno(d.terreno);
     if (d.modalidadeTerreno !== undefined) setModalidadeTerreno(d.modalidadeTerreno);
-    if (d.jaPagoLote !== undefined) setJaPagoLote(d.jaPagoLote);
+    if (d.saldoLote !== undefined) setSaldoLote(d.saldoLote);
     if (d.vendedorConstrutor !== undefined) setVendedorConstrutor(d.vendedorConstrutor);
     if (d.selicAnual !== undefined) setSelicAnual(d.selicAnual);
     if (d.selicFonte !== undefined) setSelicFonte(d.selicFonte);
@@ -696,7 +696,7 @@ function Wizard() {
     if (valorImovel < credito || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
       mostrarErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
-    const payloadResult = { ...result, modalidadeTerreno, jaPagoLote, vendedorConstrutor, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
+    const payloadResult = { ...result, modalidadeTerreno, saldoLote, vendedorConstrutor, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
     if (custoReal <= 0) { mostrarErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
@@ -806,7 +806,7 @@ function Wizard() {
                   <p className="mt-2 text-xs text-muted-foreground">{MODALIDADE_NOTA[modalidadeTerreno]}</p>
                 </div>
                 {field(modalidadeTerreno === "ctp" ? "Valor do terreno" : "Preço do terreno", terreno, setTerreno)}
-                {modalidadeTerreno === "atc" && field("Quanto já foi pago pelo lote", jaPagoLote, setJaPagoLote, true, HELP.jaPagoLote)}
+                {modalidadeTerreno === "atc" && field("Saldo devedor do lote", saldoLote, setSaldoLote, true, HELP.saldoLote)}
                 {modalidadeTerreno === "atc" && (
                   <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm md:col-span-2" htmlFor="vendedor-construtor">
                     <Checkbox id="vendedor-construtor" className="mt-0.5" checked={vendedorConstrutor} onCheckedChange={(checked) => setVendedorConstrutor(checked === true)} />
