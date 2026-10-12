@@ -53,7 +53,7 @@ describe("projeção financeira", () => {
   it("inclui o terreno no preço de venda e separa o desembolso do cliente", () => {
     const result = calculate(input);
     expect(result.valorVenda * 0.95 - result.custoTotal - input.lucro).toBeCloseTo(input.terreno);
-    expect(result.cenarios[1]?.saldo).toBeCloseTo(input.lucro);
+    expect(result.cenarios[0]?.saldo).toBeCloseTo(input.lucro);
     expect(result.desembolsoAntesContrato).toBe(10000);
     expect(result.desembolsoDuranteObra).toBeCloseTo(result.jurosObra);
   });
@@ -101,7 +101,7 @@ describe("projeção financeira", () => {
     // Patrimônio do lote + despesas pré-obra + 10% da obra + juros de obra.
     expect(result.capitalAportadoInvestidor).toBeCloseTo(100000 + 10000 + 24000 + result.jurosObra);
     expect(result.capitalGiro).toBe(24000);
-    const realista = result.cenarios[1]!;
+    const realista = result.cenarios[0]!;
     expect(realista.lucroInvestidor + realista.lucroConstrutor).toBeCloseTo(realista.saldo);
     expect(realista.preferencialPago).toBeCloseTo(Math.min(realista.saldo, result.retornoPreferencial));
     expect(realista.lucroConstrutor).toBeCloseTo(Math.max(realista.saldo - result.retornoPreferencial, 0) / 2);
@@ -111,7 +111,7 @@ describe("projeção financeira", () => {
     const result = calculate({ ...input, participacaoInvestidor: 0, lucro: 200000 });
     expect(result.aliquotaIr).toBe(22.5);
     expect(result.selicLiquida).toBeCloseTo(13.75 * 0.775);
-    expect(result.cenarios[1]?.rentabilidadeInvestidor).toBeCloseTo(result.taxaPreferencial, 1);
+    expect(result.cenarios[0]?.rentabilidadeInvestidor).toBeCloseTo(result.taxaPreferencial, 1);
   });
 
   it("trata lote comprado na operação sem ágio e sem patrimônio do investidor", () => {
@@ -133,13 +133,75 @@ describe("projeção financeira", () => {
     expect(result.patrimonioTerreno).toBeCloseTo(100000 - 10000 - 10500);
   });
 
-  it("forma o preço para o construtor ganhar o valor desejado no cenário realista", () => {
-    const result = calculate({ ...input, lucroConstrutor: 40000, prazo: 6 });
-    const realista = result.cenarios[1]!;
-    expect(realista.lucroConstrutor).toBeCloseTo(40000, 0);
-    expect(realista.lucroInvestidor).toBeCloseTo(result.retornoPreferencial + 40000, 0);
-    expect(result.lucroDesejado).toBeCloseTo(result.jurosPosObra + result.retornoPreferencial + 80000, 0);
-    expect(realista.superaSelic).toBe(true);
+  it("usa o preço de mercado: o investidor não encarece o imóvel", () => {
+    const sozinho = calculate({ ...input, precoVenda: 520000, temInvestidor: false, lucroConstrutor: 40000 });
+    const parceiro = calculate({ ...input, precoVenda: 520000, participacaoInvestidor: 50, lucroConstrutor: 40000 });
+    expect(sozinho.valorVenda).toBe(520000);
+    expect(parceiro.valorVenda).toBe(520000);
+    // Sem investidor, todo o lucro fica com o construtor e não há retorno preferencial.
+    expect(sozinho.retornoPreferencial).toBe(0);
+    expect(sozinho.cenarios[0]?.lucroInvestidor).toBe(0);
+    expect(sozinho.cenarios[0]?.lucroConstrutor).toBeCloseTo(sozinho.cenarios[0]!.saldo);
+    // Com parceiro, o mesmo lucro é dividido em cascata: o construtor recebe menos, o preço não muda.
+    expect(parceiro.cenarios[0]?.saldo).toBeCloseTo(sozinho.cenarios[0]!.saldo);
+    expect(parceiro.cenarios[0]!.lucroConstrutor).toBeLessThan(sozinho.cenarios[0]!.lucroConstrutor);
+  });
+
+  it("fecha a venda: banco, capital devolvido e as duas partes somam o caixa da venda", () => {
+    const result = calculate({ ...input, precoVenda: 560000, prazo: 4, trMensal: 0.1, seguroTarifaMensal: 90, corretagemLote: 5, custoAquisicaoLote: 120000 });
+    const c = result.cenarios[0]!;
+    const caixa = c.venda - c.corretagem - result.dividaNaVenda + result.folgaFinanciamento;
+    expect(result.capitalDevolvidoVenda + c.lucroInvestidor + c.lucroConstrutor).toBeCloseTo(caixa, 6);
+  });
+
+  it("calcula o preço mínimo e o preço para o lucro desejado do construtor", () => {
+    const base = calculate({ ...input, precoVenda: 500000, lucroConstrutor: 40000, prazo: 3 });
+    const minimo = calculate({ ...input, precoVenda: base.precoMinimo, prazo: 3 }).cenarios[0]!;
+    expect(minimo.lucroConstrutor).toBeCloseTo(0, 4);
+    expect(minimo.lucroInvestidor).toBeCloseTo(base.retornoPreferencial, 4);
+    const alvo = calculate({ ...input, precoVenda: base.precoParaLucroConstrutor ?? 0, prazo: 3 }).cenarios[0]!;
+    expect(alvo.lucroConstrutor).toBeCloseTo(40000, 4);
+    expect(base.precoEquilibrio).toBeLessThan(base.precoMinimo);
+  });
+
+  it("a parte do lote que o investidor não teria ao vendê-lo entra no lucro dividido", () => {
+    const cheio = calculate({ ...input, precoVenda: 520000 }).cenarios[0]!;
+    const liquido = calculate({ ...input, precoVenda: 520000, corretagemLote: 5 });
+    expect(liquido.patrimonioTerreno).toBe(90000);
+    expect(liquido.cenarios[0]!.saldo - cheio.saldo).toBeCloseTo(10000, 6);
+  });
+
+  it("na venda, a entrada em dinheiro é só comprovação, salvo se a agência exigir depósito", () => {
+    const compra = { ...input, origemTerreno: "compra" as const, precoVenda: 560000 };
+    const comprova = calculate(compra);
+    expect(comprova.dinheiroEntrada).toBe(100000);
+    expect(comprova.aportesInvestidor.some((f) => f.rotulo.startsWith("Entrada"))).toBe(false);
+    expect(comprova.capitalGiro).toBeCloseTo((comprova.custoConstrucao + comprova.extrasTotal) * 0.1);
+    const deposita = calculate({ ...compra, entradaDepositada: true });
+    expect(deposita.capitalGiro).toBe(0);
+    expect(deposita.dinheiroParaComecar).toBeGreaterThan(comprova.dinheiroParaComecar);
+    // A entrada depositada que a obra não usa volta no fim da obra.
+    const devolvida = deposita.aportesInvestidor.find((f) => f.rotulo.includes("volta no fim"));
+    expect(devolvida?.retornoMes).toBe(deposita.prazoExecucaoMeses);
+  });
+
+  it("cobra do investidor só o que a obra real custa além do financiamento, mês a mês", () => {
+    const result = calculate({ ...input, precoVenda: 600000, areaPlanejada: 170 });
+    expect(result.obraAlemFinanciamento).toBeCloseTo(170 * 2000 - 300000);
+    const alem = result.aportesInvestidor.filter((f) => f.rotulo === "Obra além do financiamento");
+    expect(alem.reduce((sum, f) => sum + f.valor, 0)).toBeCloseTo(result.obraAlemFinanciamento);
+    expect(result.capitalMaximo).toBeGreaterThan(result.dinheiroParaComecar);
+    expect(result.capitalMaximo).toBeLessThanOrEqual(result.capitalAportadoInvestidor);
+  });
+
+  it("mostra o efeito de vender 10% abaixo e 6 meses depois", () => {
+    const result = calculate({ ...input, precoVenda: 560000, prazo: 3, seguroTarifaMensal: 90 });
+    const [esperado, abaixo, atraso] = result.cenarios;
+    expect(abaixo!.venda).toBeCloseTo(560000 * 0.9);
+    expect(atraso!.atraso).toBe(6);
+    expect(atraso!.mesVenda).toBe(esperado!.mesVenda + 6);
+    expect(atraso!.venda).toBe(560000);
+    expect(atraso!.lucroConstrutor).toBeLessThan(esperado!.lucroConstrutor);
   });
 
   it("na venda, o lucro vem do preço e não reduz a área viável; para morar, é reservado da verba", () => {

@@ -74,8 +74,14 @@ export type SimulationInput = {
   // Custos de vender o lote hoje: definem o valor líquido que o investidor abre mão ao usá-lo na obra.
   corretagemLote: number;
   custoAquisicaoLote: number;
-  // Na venda, quanto o construtor quer ganhar; null usa o lucro informado diretamente.
+  // Na venda, quanto o construtor gostaria de ganhar: só referência para o "preço para o seu lucro".
   lucroConstrutor: number | null;
+  // Preço de venda esperado (mercado). Zero usa custos + lucro informado (simulações antigas).
+  precoVenda?: number;
+  // Sem investidor parceiro, o próprio construtor financia e fica com todo o resultado.
+  temInvestidor?: boolean;
+  // Algumas agências exigem depositar a entrada em dinheiro; sem isso ela é só comprovação de recursos.
+  entradaDepositada?: boolean;
 };
 
 const PCI_PRESETS: Record<number, number[]> = {
@@ -203,29 +209,21 @@ export function parcelasAmortizacao(divida: number, taxaMensal: number, prazo: n
   });
 }
 
-// Na venda com lucro do construtor definido, o lucro total precisa cobrir encargos até a venda,
-// o retorno preferencial e as duas partes do excedente. Como o lucro também muda área e capital,
-// o valor é encontrado por aproximações sucessivas.
+// Na venda, o preço vem do mercado e o resultado é dividido em cascata. O cenário de atraso refaz a conta
+// com mais meses de parcelas até a venda, mantendo o preço.
 export function calculate(input: SimulationInput) {
-  if (input.objetivo !== "vender" || input.lucroConstrutor === null) return calcular(input);
-  const lucroConstrutor = Math.max(input.lucroConstrutor, 0);
-  const participacao = Math.min(100, Math.max(0, input.participacaoInvestidor));
-  const excedenteNecessario = participacao < 100 ? lucroConstrutor / (1 - participacao / 100) : 0;
-  let lucro = Math.max(input.lucro, 0);
-  let result = calcular({ ...input, lucro });
-  for (let i = 0; i < 40; i++) {
-    const necessario = result.jurosPosObra + result.retornoPreferencial + excedenteNecessario;
-    if (Math.abs(necessario - lucro) < 0.01) break;
-    lucro = necessario;
-    result = calcular({ ...input, lucro });
-  }
+  const result = calcular(input);
+  if (input.objetivo !== "vender") return result;
+  const atraso = calcular({ ...input, prazo: Math.max(0, Math.floor(input.prazo)) + MESES_ATRASO_VENDA });
+  const esperado = atraso.cenarios[0];
   return {
     ...result,
-    lucroConstrutorDesejado: lucroConstrutor,
-    excedenteNecessario,
-    construtorSemExcedente: participacao >= 100 && lucroConstrutor > 0,
+    cenarios: esperado ? [...result.cenarios, { ...esperado, nome: `Venda ${MESES_ATRASO_VENDA} meses depois`, atraso: MESES_ATRASO_VENDA }] : result.cenarios,
   };
 }
+
+export const MESES_ATRASO_VENDA = 6;
+export const QUEDA_PRECO_CENARIO = 0.1;
 
 function calcular(input: SimulationInput) {
   const soma = (items: { valor: number }[]) => items.reduce((sum, item) => sum + Number(item.valor || 0), 0);
@@ -320,9 +318,11 @@ function calcular(input: SimulationInput) {
   const desembolsoProprio = desembolsoAntesContrato + desembolsoAssinatura + desembolsoDuranteObra;
   const maiorEncargoMensal = liberacoesMensais.reduce((max, item) => Math.max(max, item.encargo), 0);
 
-  // Na venda, o terreno (ágio + saldo quitado) também precisa ser recuperado.
-  const taxaCorretagem = input.objetivo === "vender" ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
-  const valorVenda = input.objetivo === "vender" ? (custoComTerreno + input.lucro) / (1 - taxaCorretagem) : recursosUtilizaveis;
+  // Na venda, o preço esperado vem do mercado; sem ele (simulações antigas), custos + lucro informado.
+  const vender = input.objetivo === "vender";
+  const taxaCorretagem = vender ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
+  const precoInformado = vender && (input.precoVenda ?? 0) > 0;
+  const valorVenda = vender ? (precoInformado ? input.precoVenda ?? 0 : (custoComTerreno + input.lucro) / (1 - taxaCorretagem)) : recursosUtilizaveis;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
   // Após a obra a dívida inteira (lote + obra) entra em amortização; a TR só é considerada na fase de obra.
   const sistemaAmortizacao: SistemaAmortizacao = input.sistemaAmortizacao === "SAC" ? "SAC" : "PRICE";
@@ -342,42 +342,75 @@ function calcular(input: SimulationInput) {
   const irGanhoLote = ganhoCapitalLote * IR_GANHO_CAPITAL;
   const patrimonioTerreno = loteProprio ? Math.max(agioLote - corretagemLoteValor - irGanhoLote, 0) : 0;
   // O banco e o FGTS só liberam após cada medição (Manual FGTS Moradia Própria, 8.5.2): para começar a obra
-  // é preciso caixa de 10% da construção. A entrada em dinheiro que sobra depois de completar o lote já
-  // é esse caixa; o FGTS não, porque também sai com as medições. O caixa inicial volta com as liberações.
+  // é preciso caixa de 10% da construção. Para morar, a entrada em dinheiro que sobra depois de completar o
+  // lote já é esse caixa. Na venda, a entrada é só comprovação de recursos, a menos que a agência exija o depósito.
+  const entradaDepositada = vender && input.entradaDepositada === true;
   const dinheiroEntradaNaObra = Math.max(dinheiroEntrada - saldoLoteNaoCoberto, 0);
-  const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - dinheiroEntradaNaObra, 0);
-  // Dinheiro em mãos até a primeira medição: despesas antes do contrato, assinatura e caixa inicial da obra.
-  const dinheiroParaComecar = desembolsoAntesContrato + desembolsoAssinatura + capitalGiro;
+  const entradaComoCaixa = !vender || entradaDepositada ? dinheiroEntradaNaObra : 0;
+  const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - entradaComoCaixa, 0);
+  // Venda: o que a obra real custa além do que o banco libera para ela sai do investidor, mês a mês, na
+  // proporção das medições; se o banco libera mais do que a obra custa, a folga fica em caixa até a venda.
+  const obraAlemFinanciamento = vender ? Math.max(custoObra - financiamentoConstrucao, 0) : 0;
+  const folgaFinanciamento = vender ? Math.max(financiamentoConstrucao - custoObra, 0) : 0;
+  const entradaAplicada = entradaDepositada ? Math.min(dinheiroEntradaNaObra, obraAlemFinanciamento) : 0;
+  const obraAlemNovoDinheiro = obraAlemFinanciamento - entradaAplicada;
+  // Dinheiro em mãos até a primeira medição.
+  const dinheiroParaComecar = vender
+    ? despesasPreContrato + despesasAssinatura + saldoLoteNaoCoberto + (entradaDepositada ? dinheiroEntradaNaObra : 0) + capitalGiro
+    : desembolsoAntesContrato + desembolsoAssinatura + capitalGiro;
   const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
   const aportesInvestidor: InvestorFlow[] = [
     { mes: 0, rotulo: "Terreno (valor líquido se vendido)", valor: patrimonioTerreno },
-    { mes: 0, rotulo: "Entrada · FGTS", valor: fgtsNaEntrada },
-    { mes: 0, rotulo: "Entrada · dinheiro", valor: dinheiroEntrada + complementoLote },
-    { mes: 0, rotulo: "Despesas pré-obra", valor: despesasPreContrato + despesasAssinatura },
-    { mes: 0, rotulo: "Aporte para a área planejada", valor: aporteParaAreaPlanejada },
-    { mes: 0, rotulo: "Capital de giro inicial (10% da obra)", valor: capitalGiro, retornoMes: mesesObra },
+    { mes: 0, rotulo: "Despesas antes da obra e na assinatura", valor: despesasPreContrato + despesasAssinatura },
+    { mes: 0, rotulo: "Terreno: parte que o banco não paga", valor: saldoLoteNaoCoberto },
+    { mes: 0, rotulo: "Entrada depositada aplicada na obra", valor: entradaAplicada },
+    { mes: 0, rotulo: "Entrada depositada (volta no fim da obra)", valor: entradaDepositada ? dinheiroEntradaNaObra - entradaAplicada : 0, retornoMes: mesesObra },
+    { mes: 0, rotulo: "Caixa para começar (10% da obra)", valor: capitalGiro, retornoMes: mesesObra },
+    ...input.liberacoes.map((item) => ({ mes: item.mes, rotulo: "Obra além do financiamento", valor: obraAlemNovoDinheiro * item.percentual / 100 })),
     ...liberacoesMensais.map((item) => ({ mes: item.mes, rotulo: "Juros de obra", valor: item.encargo })),
     ...Array.from({ length: mesesAposObra }, (_, index) => ({ mes: mesesObra + index + 1, rotulo: "Parcelas até a venda", valor: parcelaPosObra })),
   ].filter((flow) => flow.valor > 0.005);
   const capitalAportadoInvestidor = aportesInvestidor.reduce((sum, flow) => sum + flow.valor, 0);
-  // Capital que volta só na venda (o capital de giro retorna com as liberações, ao fim da obra).
+  // Capital que volta só na venda (o caixa inicial e a entrada não usada retornam ao fim da obra).
   const capitalDevolvidoVenda = aportesInvestidor.filter((flow) => flow.retornoMes === undefined).reduce((sum, flow) => sum + flow.valor, 0);
+  // Maior volume de dinheiro do investidor aplicado ao mesmo tempo: é quanto ele precisa ter disponível.
+  let acumulado = 0;
+  let capitalMaximo = 0;
+  for (let mes = 0; mes <= mesVenda; mes++) {
+    acumulado += aportesInvestidor.filter((flow) => flow.mes === mes).reduce((sum, flow) => sum + flow.valor, 0);
+    capitalMaximo = Math.max(capitalMaximo, acumulado);
+    acumulado -= aportesInvestidor.filter((flow) => flow.retornoMes === mes).reduce((sum, flow) => sum + flow.valor, 0);
+  }
+  const temInvestidor = vender && input.temInvestidor !== false;
   const selicAnual = Math.max(input.selicAnual, 0);
   const aliquotaIr = irAliquota(mesVenda);
   const selicLiquida = selicAnual * (1 - aliquotaIr / 100);
-  const taxaPreferencial = selicLiquida + Math.max(input.premioInvestidor, 0);
+  const taxaPreferencial = temInvestidor ? selicLiquida + Math.max(input.premioInvestidor, 0) : 0;
   const taxaPreferencialMensal = Math.pow(1 + taxaPreferencial / 100, 1 / 12) - 1;
   const retornoPreferencial = aportesInvestidor.reduce(
     (sum, flow) => sum + flow.valor * (Math.pow(1 + taxaPreferencialMensal, (flow.retornoMes ?? mesVenda) - flow.mes) - 1),
     0,
   );
   const recebimentoConstrutorLote = input.origemTerreno === "construtor" ? input.terreno : 0;
-  const participacaoInvestidor = Math.min(100, Math.max(0, input.participacaoInvestidor));
-  const cenarios = [-0.15, 0, 0.15].map((ajuste, index) => {
+  const participacaoInvestidor = temInvestidor ? Math.min(100, Math.max(0, input.participacaoInvestidor)) : 0;
+  // Na venda, o banco recebe o saldo devedor e a folga do financiamento volta ao caixa. O que sobra
+  // depois de devolver o capital é o lucro da operação, dividido em cascata.
+  const dividaNaVenda = Math.max(saldoLiberado - amortizacaoEstimada, 0);
+  const caixaSemVenda = folgaFinanciamento - dividaNaVenda - capitalDevolvidoVenda;
+  const lucroNaVenda = (venda: number) => venda * (1 - taxaCorretagem) + caixaSemVenda;
+  const precoPara = (lucro: number) => (lucro - caixaSemVenda) / (1 - taxaCorretagem);
+  // Referências: preço que só devolve o capital, preço que paga o retorno mínimo do investidor e preço
+  // para o construtor receber o lucro que deseja depois da parte do investidor.
+  const precoEquilibrio = vender ? precoPara(0) : 0;
+  const precoMinimo = vender ? precoPara(retornoPreferencial) : 0;
+  const lucroAlvoConstrutor = vender ? Math.max(input.lucroConstrutor ?? 0, 0) : 0;
+  const precoParaLucroConstrutor = lucroAlvoConstrutor > 0 && participacaoInvestidor < 100
+    ? precoPara(retornoPreferencial + lucroAlvoConstrutor / (1 - participacaoInvestidor / 100))
+    : null;
+  const cenarios = [0, -QUEDA_PRECO_CENARIO].map((ajuste) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
-    // Lucro econômico: venda menos todos os custos, inclusive terreno e encargos até a venda.
-    const saldo = venda - corretagem - custoComTerreno - jurosPosObra;
+    const saldo = lucroNaVenda(venda);
     // Cascata: 1) devolve o capital; 2) paga o retorno preferencial; 3) divide o excedente.
     const preferencialPago = Math.min(Math.max(saldo, 0), retornoPreferencial);
     const excedente = Math.max(saldo - retornoPreferencial, 0);
@@ -390,13 +423,15 @@ function calcular(input: SimulationInput) {
       { mes: mesVenda, valor: capitalDevolvidoVenda + lucroInvestidor },
     ];
     const tirMensal = capitalAportadoInvestidor > 0 ? irr(fluxos) : null;
+    const rentabilidade = tirMensal === null ? null : (Math.pow(1 + tirMensal, 12) - 1) * 100;
     return {
-      nome: ["Pessimista", "Realista", "Otimista"][index], ajuste, venda, corretagem, saldo,
-      preferencialPago, excedente, lucroInvestidor, lucroConstrutor,
-      rentabilidadeInvestidor: tirMensal === null ? null : (Math.pow(1 + tirMensal, 12) - 1) * 100,
-      superaSelic: tirMensal === null ? null : (Math.pow(1 + tirMensal, 12) - 1) * 100 >= selicLiquida,
+      nome: ajuste === 0 ? "Venda como esperado" : `Venda ${Math.round(QUEDA_PRECO_CENARIO * 100)}% abaixo`, ajuste, atraso: 0,
+      venda, corretagem, saldo, preferencialPago, excedente, lucroInvestidor, lucroConstrutor, mesVenda,
+      rentabilidadeInvestidor: rentabilidade,
+      superaSelic: rentabilidade === null ? null : rentabilidade >= selicLiquida,
     };
   });
+  const lucroOperacao = vender ? lucroNaVenda(valorVenda) : input.lucro;
   return {
     areaViavel, areaViavelMinima, areaViavelMaxima, areaPlanejada, aporteParaAreaPlanejada, custoM2,
     maoDeObra: input.maoDeObra, materiais: input.materiais,
@@ -404,13 +439,16 @@ function calcular(input: SimulationInput) {
     extrasTotal, despesasTotal, despesasPreContrato, despesasAssinatura, despesasObra, despesas: input.despesas,
     saldoRecursos, disponivel, custoObra, custoConstrucao, custoTotal, custoComTerreno, jurosObra,
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
-    lucroDesejado: input.lucro, mesesAposObra, jurosPosObra, amortizacaoEstimada,
+    lucroDesejado: lucroOperacao, mesesAposObra, precoInformado,
+    precoEquilibrio, precoMinimo, precoParaLucroConstrutor, lucroAlvoConstrutor, temInvestidor, entradaDepositada,
+    obraAlemFinanciamento, folgaFinanciamento, entradaAplicada, dividaNaVenda, capitalMaximo, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
     capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
     origemTerreno: input.origemTerreno, selicAnual, aliquotaIr, selicLiquida, premioInvestidor: input.premioInvestidor,
     taxaPreferencial, retornoPreferencial, mesVenda, recebimentoConstrutorLote,
     corretagemLoteValor, ganhoCapitalLote, irGanhoLote,
-    lucroConstrutorDesejado: null as number | null, excedenteNecessario: 0, construtorSemExcedente: false,
+    lucroConstrutorDesejado: lucroAlvoConstrutor > 0 ? lucroAlvoConstrutor : null,
+    construtorSemExcedente: vender && temInvestidor && participacaoInvestidor >= 100,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
     agioLote, agioNaEntrada, fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
     limiteFinanciavelLote, loteContrato, obraContrato, redistribuicaoContrato,

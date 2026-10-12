@@ -27,6 +27,9 @@ import {
   monthlyToAnnualRate,
   pciReleases,
   suggestedExecutionMonths,
+  NUMBER,
+  MESES_ATRASO_VENDA,
+  QUEDA_PRECO_CENARIO,
   type ClientExpense,
   type OrigemTerreno,
   type SistemaAmortizacao,
@@ -108,7 +111,10 @@ const HELP = {
   juros: "Taxa efetiva anual mostrada pelo simulador da Caixa. Na fase de obra, os juros mensais são a taxa nominal ÷ 12, cobrados sobre a dívida já liberada (lote + parcelas medidas).",
   tr: "Atualização monetária cobrada junto com os juros na fase de obra: dívida liberada × TR. Consultada automaticamente no Banco Central; edite se quiser outra premissa.",
   seguros: "Seguro Morte e Invalidez (MIP), Danos Físicos (DFI) e tarifa de administração cobrados todo mês desde a assinatura. Copie os valores da 1ª prestação no simulador da Caixa.",
-  lucroConstrutor: "Quanto o construtor quer ganhar no cenário realista. O app soma encargos até a venda, o retorno preferencial do investidor e a parte dele no excedente para chegar ao lucro total e ao preço de venda.",
+  lucroConstrutor: "Quanto você gostaria de ganhar. É só referência: o app mostra o preço que daria esse lucro depois da parte do investidor, mas o preço de venda é o do mercado.",
+  precoVenda: "Quanto o mercado paga por esta casa pronta. O lucro sai deste preço e é dividido em cascata: primeiro volta o capital do investidor, depois o retorno mínimo dele e só então o restante é dividido. Ter um parceiro não aumenta o preço.",
+  precoM2Mercado: "Veja anúncios de casas parecidas no bairro e divida o preço pela área. Exemplo: casa de 120 m² anunciada por R$ 480 mil → R$ 4.000 por m². Use a média de 3 ou 4 anúncios.",
+  entradaDepositada: "Na maioria das operações a entrada em dinheiro é só comprovação de recursos: fica na conta, e o investidor aplica apenas o que a obra real pedir além do financiamento. Marque se a agência exigir o depósito; aí a entrada sai na assinatura e o que a obra não usar volta no fim.",
   corretagemLote: "Comissão que o investidor pagaria para vender o lote hoje. O lote entra no capital pelo valor líquido, que é o que ele de fato receberia.",
   custoAquisicaoLote: "Quanto o investidor pagou pelo lote. Serve para estimar o IR de 15% sobre o ganho de capital numa venda hoje (sem fatores de redução). Deixe zerado se não souber.",
   selic: "Meta Selic anual, consultada automaticamente no Banco Central. É a referência de renda fixa segura (Tesouro Selic) que a operação precisa superar.",
@@ -119,48 +125,78 @@ const HELP = {
   financiamento: "Valor que o banco empresta. Primeiro quita o saldo devedor do lote, se houver; o restante é liberado em parcelas conforme a medição da obra, nunca de uma vez.",
 };
 
-function ProfitBreakdown({ result }: { result: ReturnType<typeof calculate> }) {
-  if (result.lucroConstrutorDesejado === null) return null;
-  const parteInvestidor = result.excedenteNecessario - result.lucroConstrutorDesejado;
-  const rows: [string, number][] = [
-    ["Encargos até a venda", result.jurosPosObra],
-    ["Retorno preferencial do investidor", result.retornoPreferencial],
-    ["Parte do investidor no excedente", parteInvestidor],
-    ["Parte do construtor", result.lucroConstrutorDesejado],
-  ];
+// Referências de preço: até onde a venda devolve o capital, paga o retorno mínimo do investidor e dá o lucro desejado.
+function PrecoReferencias({ result, precoVenda }: { result: ReturnType<typeof calculate>; precoVenda: number }) {
+  const status =
+    precoVenda <= 0 ? null
+    : precoVenda < result.precoEquilibrio ? { cor: "border-destructive/40 bg-destructive/10 text-destructive", texto: "Abaixo do preço que devolve o capital: a operação dá prejuízo." }
+    : precoVenda < result.precoMinimo ? { cor: "border-destructive/40 bg-destructive/10 text-destructive", texto: "O investidor não recebe o retorno mínimo combinado e o construtor fica sem lucro." }
+    : result.precoParaLucroConstrutor !== null && precoVenda < result.precoParaLucroConstrutor ? { cor: "border-secondary/40 bg-secondary/10 text-secondary", texto: `Você recebe ${BRL.format(Math.max(result.cenarios[0]?.lucroConstrutor ?? 0, 0))}, menos que o lucro desejado.` }
+    : { cor: "border-primary/40 bg-primary/10 text-primary", texto: "O preço paga o capital, o retorno do investidor e o seu lucro." };
   return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 md:col-span-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Lucro total necessário na venda</p>
-        <p className="text-lg font-bold">{BRL.format(result.lucroDesejado)}</p>
-      </div>
-      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-        {rows.filter(([, valor]) => valor > 0.005).map(([rotulo, valor]) => (
-          <li key={rotulo} className="flex justify-between gap-3"><span>{rotulo}</span><span>{BRL.format(valor)}</span></li>
-        ))}
+    <div className="rounded-md border px-4 py-3 text-sm md:col-span-2">
+      <ul className="space-y-1.5">
+        <li className="flex justify-between gap-3"><span className="text-muted-foreground">Preço que só devolve o capital</span><strong className="whitespace-nowrap">{BRL.format(result.precoEquilibrio)}</strong></li>
+        {result.temInvestidor && <li className="flex justify-between gap-3"><span className="text-muted-foreground">Preço mínimo (com o retorno mínimo do investidor)</span><strong className="whitespace-nowrap">{BRL.format(result.precoMinimo)}</strong></li>}
+        {result.precoParaLucroConstrutor !== null && <li className="flex justify-between gap-3"><span className="text-muted-foreground">Preço para o seu lucro de {BRL.format(result.lucroAlvoConstrutor)}</span><strong className="whitespace-nowrap">{BRL.format(result.precoParaLucroConstrutor)}</strong></li>}
       </ul>
+      {status && <p className={`mt-3 rounded-md border p-2.5 text-xs ${status.cor}`}>{status.texto}</p>}
     </div>
   );
 }
 
-function InvestorSummary({ result }: { result: ReturnType<typeof calculate> }) {
+// Divisão do lucro da venda esperada em cascata.
+function CascataVenda({ result }: { result: ReturnType<typeof calculate> }) {
+  const c = result.cenarios[0];
+  if (!c) return null;
+  const rows: [string, number][] = result.temInvestidor
+    ? [
+        ["1. Retorno mínimo do investidor", c.preferencialPago],
+        [`2. Parte do investidor no restante (${pct(result.participacaoInvestidor)})`, c.lucroInvestidor - c.preferencialPago],
+        ["3. Sua parte", c.lucroConstrutor],
+      ]
+    : [["Seu lucro", c.lucroConstrutor]];
+  return (
+    <div className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 md:col-span-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Lucro da operação na venda esperada</p>
+        <p className={`text-lg font-bold ${c.saldo < 0 ? "text-destructive" : ""}`}>{BRL.format(c.saldo)}</p>
+      </div>
+      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+        {rows.map(([rotulo, valor]) => (
+          <li key={rotulo} className="flex justify-between gap-3"><span>{rotulo}</span><span className="whitespace-nowrap">{BRL.format(valor)}</span></li>
+        ))}
+      </ul>
+      {c.rentabilidadeInvestidor !== null && (
+        <p className={`mt-3 text-xs font-semibold ${c.superaSelic ? "text-primary" : "text-destructive"}`}>
+          {result.temInvestidor ? "Investidor" : "Seu capital"}: {pct(c.rentabilidadeInvestidor)} ao ano · Selic líquida {pct(result.selicLiquida)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Dinheiro do investidor (ou do construtor, sem parceiro): o máximo aplicado ao mesmo tempo e o total ao longo da operação.
+function CapitalInvestidor({ result }: { result: ReturnType<typeof calculate> }) {
+  const grupos = Object.entries(result.aportesInvestidor.reduce<Record<string, number>>((acc, flow) => ({ ...acc, [flow.rotulo]: (acc[flow.rotulo] ?? 0) + flow.valor }), {}));
   return (
     <div className="rounded-md border px-4 py-3 md:col-span-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Capital do investidor</p>
-        <p className="font-semibold">{BRL.format(result.capitalAportadoInvestidor)}</p>
+        <p className="text-sm text-muted-foreground">{result.temInvestidor ? "O investidor precisa ter disponível" : "Você precisa ter disponível"}</p>
+        <p className="text-lg font-bold">{BRL.format(result.capitalMaximo)}</p>
       </div>
+      <p className="text-xs text-muted-foreground">Maior valor aplicado ao mesmo tempo. Ao longo da operação entram {BRL.format(result.capitalAportadoInvestidor)}, em datas diferentes:</p>
       <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-        {Object.entries(result.aportesInvestidor.reduce<Record<string, number>>((acc, flow) => ({ ...acc, [flow.rotulo]: (acc[flow.rotulo] ?? 0) + flow.valor }), {})).map(([rotulo, valor]) => (
-          <li key={rotulo} className="flex justify-between gap-3"><span>{rotulo}</span><span>{BRL.format(valor)}</span></li>
+        {grupos.map(([rotulo, valor]) => (
+          <li key={rotulo} className="flex justify-between gap-3"><span>{rotulo}</span><span className="whitespace-nowrap">{BRL.format(valor)}</span></li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Retorno preferencial: {pct(result.taxaPreferencial)} a.a. (Selic {pct(result.selicAnual)} − IR {pct(result.aliquotaIr)} + prêmio) = {BRL.format(result.retornoPreferencial)} até a venda, no mês {result.mesVenda}.
-        {result.capitalGiro > 0 && " O capital de giro volta com as liberações, ao fim da obra."}
-        {result.patrimonioTerreno > 0 && (result.corretagemLoteValor > 0 || result.irGanhoLote > 0) && ` Terreno: ${BRL.format(result.agioLote)} − corretagem ${BRL.format(result.corretagemLoteValor)}${result.irGanhoLote > 0 ? ` − IR ${BRL.format(result.irGanhoLote)}` : ""}.`}
-        {result.recebimentoConstrutorLote > 0 && ` O construtor recebe ${BRL.format(result.recebimentoConstrutorLote)} pelo lote na assinatura${result.capitalGiro > 0 ? `; se usar parte disso no início da obra, o capital de giro de ${BRL.format(result.capitalGiro)} deixa de sair do investidor` : ""}.`}
-      </p>
+      {result.temInvestidor && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Retorno mínimo: {pct(result.taxaPreferencial)} ao ano (Selic {pct(result.selicAnual)} − IR {pct(result.aliquotaIr)} + prêmio) = {BRL.format(result.retornoPreferencial)} até a venda, no mês {result.mesVenda}.
+          {result.capitalGiro > 0 && " O caixa para começar volta com as liberações, ao fim da obra."}
+        </p>
+      )}
     </div>
   );
 }
@@ -252,6 +288,10 @@ function Wizard() {
   const [corretagemLote, setCorretagemLote] = useState(5);
   const [custoAquisicaoLote, setCustoAquisicaoLote] = useState(0);
   const [lucroConstrutor, setLucroConstrutor] = useState(0);
+  const [precoVenda, setPrecoVenda] = useState(0);
+  const [precoM2Mercado, setPrecoM2Mercado] = useState(0);
+  const [temInvestidor, setTemInvestidor] = useState(true);
+  const [entradaDepositada, setEntradaDepositada] = useState(false);
   const [saldo, setSaldo] = useState(0);
   const [renda, setRenda] = useState(0);
   const [credito, setCredito] = useState(0);
@@ -309,8 +349,8 @@ function Wizard() {
   }, [erro, erroVez]);
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, precoVenda, temInvestidor, entradaDepositada, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoVenda, temInvestidor, entradaDepositada, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, participacaoInvestidor],
   );
   // ITBI e registro de compra só quando o lote muda de dono na operação.
   const transferenciaLote = origemTerreno !== "investidor" || (situacao === "financiado" && saldo > 0);
@@ -355,8 +395,11 @@ function Wizard() {
         corretagemLote,
         custoAquisicaoLote,
         lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null,
+        precoVenda,
+        temInvestidor,
+        entradaDepositada,
       }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoVenda, temInvestidor, entradaDepositada, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   // Pré-preenchimento vindo da pré-análise pela renda (só em simulação nova).
   useEffect(() => {
@@ -405,6 +448,12 @@ function Wizard() {
       setOrigemTerreno(saved.origemTerreno ?? "investidor");
       setPremioInvestidor(saved.premioInvestidor ?? 5);
       setCorretagemLote(saved.corretagemLote ?? 5); setCustoAquisicaoLote(saved.custoAquisicaoLote ?? 0);
+      const venda = saved as { precoVenda?: number; precoM2Mercado?: number; temInvestidor?: boolean; entradaDepositada?: boolean };
+      // Simulações antigas: o preço calculado vira o preço esperado; o investidor existia se havia participação.
+      setPrecoVenda(venda.precoVenda ?? (data.objetivo === "vender" ? saved.valorVenda ?? 0 : 0));
+      setPrecoM2Mercado(venda.precoM2Mercado ?? 0);
+      setTemInvestidor(venda.temInvestidor ?? ((saved.participacaoInvestidor ?? 0) > 0 || (saved.aportesInvestidor?.length ?? 0) > 0));
+      setEntradaDepositada(venda.entradaDepositada ?? false);
       setLucroConstrutor(saved.lucroConstrutorDesejado ?? Math.max(saved.cenarios?.[1]?.lucroConstrutor ?? 0, 0));
       if (saved.selicAnual) { setSelicAnual(saved.selicAnual); setSelicFonte("valor salvo na simulação"); }
       setProjetos(saved.projetos ?? 0); setAdministracao(saved.administracao ?? 0); setHonorarios(saved.honorarios ?? 0);
@@ -465,7 +514,7 @@ function Wizard() {
   }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   // Rascunho no navegador: o preenchimento sobrevive a recarregar a página ou sair sem salvar.
   const chaveRascunho = `sinal-verde:rascunho:${editar ?? "nova"}`;
-  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides }), [step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides]);
+  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoVenda, precoM2Mercado, temInvestidor, entradaDepositada }), [step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoVenda, precoM2Mercado, temInvestidor, entradaDepositada]);
   const [tocado, setTocado] = useState(false);
   const [rascunho, setRascunho] = useState<{ salvoEm: number; dados: Partial<typeof instantaneo> } | null>(null);
   useEffect(() => {
@@ -543,6 +592,10 @@ function Wizard() {
     if (d.honorarios !== undefined) setHonorarios(d.honorarios);
     if (d.primeiroImovelSfh !== undefined) setPrimeiroImovelSfh(d.primeiroImovelSfh);
     if (d.expenseOverrides !== undefined) setExpenseOverrides(d.expenseOverrides);
+    if (d.precoVenda !== undefined) setPrecoVenda(d.precoVenda);
+    if (d.precoM2Mercado !== undefined) setPrecoM2Mercado(d.precoM2Mercado);
+    if (d.temInvestidor !== undefined) setTemInvestidor(d.temInvestidor);
+    if (d.entradaDepositada !== undefined) setEntradaDepositada(d.entradaDepositada);
     setRascunho(null);
     setTocado(true);
   }
@@ -561,6 +614,7 @@ function Wizard() {
     if (n === 2 && jurosAnuais <= 0) return "Informe a taxa de juros efetiva anual do simulador da Caixa.";
     if (n === 2 && seguroTarifaMensal <= 0) return "Informe seguros (MIP e DFI) e tarifa por mês do simulador da Caixa.";
     if (n === 2 && custoReal <= 0) return "Informe mão de obra e materiais por m² para calcular a área.";
+    if (n === 3 && objetivo === "vender" && precoVenda <= 0) return "Informe o preço de venda esperado (o que o mercado paga pela casa pronta).";
     return "";
   }
   // Voltar é livre; para avançar, as etapas anteriores ao destino precisam estar completas.
@@ -590,7 +644,7 @@ function Wizard() {
     if (valorImovel < credito || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
       mostrarErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
-    const payloadResult = { ...result, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
+    const payloadResult = { ...result, precoVenda: objetivo === "vender" ? precoVenda : 0, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
     if (custoReal <= 0) { mostrarErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
@@ -960,7 +1014,7 @@ function Wizard() {
                     ))}
                   </div>
                 </div>
-                {objetivo === "morar" ? field("Remuneração ou margem do responsável", lucro, setLucro) : field("Lucro desejado do construtor", lucroConstrutor, setLucroConstrutor, true, HELP.lucroConstrutor)}
+                {objetivo === "morar" && field("Remuneração ou margem do responsável", lucro, setLucro)}
                  <div>{field("Área planejada para orçamento (m²)", areaPlanejada, setAreaPlanejada, false)}<p className="mt-1 text-xs text-muted-foreground">O preço acompanha os custos desta área; compare com a faixa viável abaixo.</p></div>
                 {field("Honorários desejados", honorarios, setHonorarios)}
                 {field("Projetos", projetos, setProjetos)}
@@ -971,30 +1025,58 @@ function Wizard() {
                 )}
                 {objetivo === "vender" && (
                   <>
-                    <div>
-                      <Label>Corretagem (%)</Label>
-                      <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
+                    <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-2">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-2">Preço de venda</p>
+                      {field("Preço de venda esperado", precoVenda, setPrecoVenda, true, HELP.precoVenda)}
+                      <div>
+                        {field("Preço do m² de casa pronta na região (opcional)", precoM2Mercado, setPrecoM2Mercado, true, HELP.precoM2Mercado)}
+                        {precoM2Mercado > 0 && result.areaPlanejada > 0 && (
+                          <Button type="button" variant="link" className="h-auto whitespace-normal p-0 pt-1.5 text-left text-xs" onClick={() => setPrecoVenda(Math.round(precoM2Mercado * result.areaPlanejada))}>
+                            Usar {NUMBER.format(result.areaPlanejada)} m² × {BRL.format(precoM2Mercado)} = {BRL.format(precoM2Mercado * result.areaPlanejada)}
+                          </Button>
+                        )}
+                      </div>
+                      <div>
+                        <Label>Corretagem (%)</Label>
+                        <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
+                      </div>
+                      {field("Meses após a obra até a venda (0 = vendida na entrega)", prazo, setPrazo, false)}
+                      {field("Lucro que você gostaria de ter (referência)", lucroConstrutor, setLucroConstrutor, true, HELP.lucroConstrutor)}
+                      <PrecoReferencias result={result} precoVenda={precoVenda} />
                     </div>
-                    {field("Meses após conclusão até a venda (0 = venda na planta)", prazo, setPrazo, false)}
-                    {field("Selic anual (% a.a.)", selicAnual, (value) => { setSelicAnual(value); setSelicFonte(selicFonte || "informada manualmente"); }, false, HELP.selic)}
-                    {field("Prêmio mínimo sobre a Selic líquida (p.p. a.a.)", premioInvestidor, setPremioInvestidor, false, HELP.premio)}
-                    {field("Participação do investidor no excedente (%)", participacaoInvestidor, setParticipacaoInvestidor, false, HELP.participacao)}
-                    {origemTerreno === "investidor" && result.agioLote > 0 && <>
-                      {field("Corretagem se vendesse o lote hoje (%)", corretagemLote, setCorretagemLote, false, HELP.corretagemLote)}
-                      {field("Valor pago na compra do lote (opcional)", custoAquisicaoLote, setCustoAquisicaoLote, true, HELP.custoAquisicaoLote)}
-                    </>}
-                    <ProfitBreakdown result={result} />
-                    {selicFonte && <p className="self-end text-xs text-muted-foreground">Selic: {selicFonte}.</p>}
-                    <InvestorSummary result={result} />
-                    <div className="md:col-span-2 rounded-lg border border-secondary/30 bg-secondary/5 p-5">
-                      <p className="text-sm text-muted-foreground">Valor estimado de venda</p>
-                      <p className="mt-1 text-2xl font-bold">{BRL.format(result.valorVenda)}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">Terreno, construção, despesas, juros de obra, lucro desejado e corretagem. Cada valor entra uma vez.</p>
-                       {result.aporteParaAreaPlanejada > 0 && <p className="mt-2 text-xs text-destructive">Aporte adicional para esta área: {BRL.format(result.aporteParaAreaPlanejada)}.</p>}
+                    <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-2">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-2">Quem coloca o dinheiro</p>
+                      <div className="grid grid-cols-2 gap-2 md:col-span-2">
+                        {([[true, "Com investidor parceiro"], [false, "Só o construtor"]] as const).map(([valor, rotulo]) => (
+                          <Button key={rotulo} type="button" variant={temInvestidor === valor ? "default" : "outline"} className="h-auto min-h-10 whitespace-normal py-2" onClick={() => setTemInvestidor(valor)}>{rotulo}</Button>
+                        ))}
+                      </div>
+                      {temInvestidor && <>
+                        {field("Participação do investidor no que sobrar (%)", participacaoInvestidor, setParticipacaoInvestidor, false, HELP.participacao)}
+                        {field("Prêmio sobre a Selic líquida (p.p. ao ano)", premioInvestidor, setPremioInvestidor, false, HELP.premio)}
+                        {field("Selic anual (% a.a.)", selicAnual, (value) => { setSelicAnual(value); setSelicFonte(selicFonte || "informada manualmente"); }, false, HELP.selic)}
+                        {selicFonte && <p className="self-end text-xs text-muted-foreground">Selic: {selicFonte}.</p>}
+                        {origemTerreno === "investidor" && result.agioLote > 0 && <>
+                          {field("Corretagem se vendesse o lote hoje (%)", corretagemLote, setCorretagemLote, false, HELP.corretagemLote)}
+                          {field("Valor pago na compra do lote (opcional)", custoAquisicaoLote, setCustoAquisicaoLote, true, HELP.custoAquisicaoLote)}
+                        </>}
+                      </>}
+                      {result.dinheiroEntrada > 0 && (
+                        <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm md:col-span-2" htmlFor="entrada-depositada">
+                          <Checkbox id="entrada-depositada" className="mt-0.5" checked={entradaDepositada} onCheckedChange={(checked) => setEntradaDepositada(checked === true)} />
+                          <span>
+                            <strong className="block">A agência exige depositar a entrada em dinheiro ({BRL.format(result.dinheiroEntrada)})</strong>
+                            <span className="text-muted-foreground">{HELP.entradaDepositada}</span>
+                          </span>
+                        </label>
+                      )}
+                      <CapitalInvestidor result={result} />
+                      {precoVenda > 0 && <CascataVenda result={result} />}
+                      {result.construtorSemExcedente && <p className="text-xs text-destructive md:col-span-2">Com 100% do restante para o investidor, o construtor não recebe nada: reduza a participação do investidor.</p>}
                     </div>
                   </>
                 )}
-                <p className="text-xs text-muted-foreground md:col-span-2">A margem é reservada no cálculo da área viável. Honorários e administração entram uma única vez nas despesas adicionais.</p>
+                {objetivo === "morar" && <p className="text-xs text-muted-foreground md:col-span-2">A margem é reservada no cálculo da área viável. Honorários e administração entram uma única vez nas despesas adicionais.</p>}
                 <div className="md:col-span-2 rounded-lg border p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -1011,7 +1093,23 @@ function Wizard() {
                     Valores municipais, cartorários e previdenciários são estimativas editáveis.
                   </p>
                 </div>
-                 {objetivo === "vender" && <div className="md:col-span-2 border-y py-4"><p className="text-sm font-semibold">Cenários de venda</p><p className="mt-1 text-xs text-muted-foreground">Variação de 15% no valor de venda. A venda devolve o capital do investidor, paga o retorno preferencial e só então divide o excedente.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">{result.cenarios.map(c => <div key={c.nome} className="border-l border-border pl-3"><p className="text-sm font-semibold">{c.nome}</p><p className="text-sm">Venda {BRL.format(c.venda)}</p><p className="text-sm">Lucro {BRL.format(c.saldo)}</p><p className="text-xs text-muted-foreground">Investidor {BRL.format(c.lucroInvestidor)} · Construtor {BRL.format(c.lucroConstrutor)}</p>{c.rentabilidadeInvestidor !== null && <p className={`text-xs font-semibold ${c.superaSelic ? "text-primary" : "text-destructive"}`}>Investidor: {pct(c.rentabilidadeInvestidor)} a.a. · Selic líq. {pct(result.selicLiquida)}</p>}</div>)}</div>{result.construtorSemExcedente && <p className="mt-3 text-xs text-destructive">Com 100% do excedente para o investidor, o construtor não recebe nada: reduza a participação do investidor.</p>}</div>}
+                {objetivo === "vender" && precoVenda > 0 && (
+                  <div className="md:col-span-2 border-y py-4">
+                    <p className="text-sm font-semibold">E se a venda não sair como esperado?</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Mesmo preço vendido {MESES_ATRASO_VENDA} meses depois (mais parcelas no nome do investidor) e venda {Math.round(QUEDA_PRECO_CENARIO * 100)}% abaixo do esperado.</p>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                      {result.cenarios.map((c) => (
+                        <div key={c.nome} className="border-l border-border pl-3">
+                          <p className="text-sm font-semibold">{c.nome}</p>
+                          <p className="text-sm">Venda {BRL.format(c.venda)} no mês {c.mesVenda}</p>
+                          <p className={`text-sm ${c.saldo < 0 ? "text-destructive" : ""}`}>Lucro {BRL.format(c.saldo)}</p>
+                          <p className="text-xs text-muted-foreground">{result.temInvestidor ? `Investidor ${BRL.format(c.lucroInvestidor)} · Você ${BRL.format(c.lucroConstrutor)}` : `Você ${BRL.format(c.lucroConstrutor)}`}</p>
+                          {c.rentabilidadeInvestidor !== null && <p className={`text-xs font-semibold ${c.superaSelic ? "text-primary" : "text-destructive"}`}>{pct(c.rentabilidadeInvestidor)} ao ano · Selic líq. {pct(result.selicLiquida)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="md:col-span-2 rounded-lg border border-primary/20 bg-primary/5 p-5">
                   <p className="text-sm text-muted-foreground">Faixa de área construída viável</p>
                    <p className="mt-1 text-2xl font-bold text-primary">{result.areaViavelMinima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a {result.areaViavelMaxima.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>
@@ -1059,13 +1157,20 @@ function LivePanel({ result, objetivo }: { result: ReturnType<typeof calculate>;
   const vender = objetivo === "vender";
   const items = [
     { label: "Área viável", value: semCusto ? "—" : `${area(result.areaViavelMinima)} a ${area(result.areaViavelMaxima)} m²`, tone: "text-primary" },
-    vender
-      ? { label: "Venda estimada", value: semCusto ? "—" : BRL.format(result.valorVenda), tone: "" }
-      : { label: "Verba disponível para obra", value: BRL.format(result.recursosUtilizaveis), tone: "" },
-    { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" },
-    { label: "Dinheiro do cliente", value: BRL.format(result.desembolsoProprio), tone: "text-secondary" },
+    ...(vender
+      ? [
+          { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" },
+          { label: "Preço de venda", value: result.precoInformado ? BRL.format(result.valorVenda) : "—", tone: "" },
+          { label: "Seu lucro", value: result.precoInformado && !semCusto ? BRL.format(result.cenarios[0]?.lucroConstrutor ?? 0) : "—", tone: "text-primary" },
+          { label: result.temInvestidor ? "Investidor precisa ter" : "Você precisa ter", value: semCusto ? "—" : BRL.format(result.capitalMaximo), tone: "text-secondary" },
+        ]
+      : [
+          { label: "Verba disponível para obra", value: BRL.format(result.recursosUtilizaveis), tone: "" },
+          { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" },
+          { label: "Dinheiro do cliente", value: BRL.format(result.desembolsoProprio), tone: "text-secondary" },
+        ]),
     { label: "Para começar a obra", value: BRL.format(result.dinheiroParaComecar), tone: "" },
-    ...(!semCusto && result.aporteParaAreaPlanejada > 0
+    ...(!vender && !semCusto && result.aporteParaAreaPlanejada > 0
       ? [{ label: "Aporte para a área", value: BRL.format(result.aporteParaAreaPlanejada), tone: "text-destructive" }]
       : []),
   ];

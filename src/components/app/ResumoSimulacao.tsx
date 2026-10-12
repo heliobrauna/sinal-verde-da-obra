@@ -16,6 +16,9 @@ type ResumoResultado = {
   custoComTerreno?: number;
   valorVenda?: number;
   lucroDesejado?: number;
+  capitalMaximo?: number;
+  temInvestidor?: boolean;
+  cenarios?: { lucroConstrutor?: number }[];
 };
 
 const SINAL: Record<SinalProposta, { rotulo: string; classe: string }> = {
@@ -36,10 +39,16 @@ export function ResumoSimulacao({ item }: { item: Tables<"simulacoes"> }) {
   const resumo = proposta ? resumoProposta(proposta) : null;
   const numeros: { rotulo: string; valor: string; detalhe?: string | undefined }[] = [];
   if (item.objetivo === "vender") {
-    if (r.valorVenda) numeros.push({ rotulo: "Venda estimada", valor: BRL.format(r.valorVenda) });
-    if (custoComTerreno) numeros.push({ rotulo: "Custo total", valor: BRL.format(custoComTerreno) });
-    const lucro = r.lucroDesejado ?? item.lucro_desejado ?? 0;
-    if (lucro) numeros.push({ rotulo: "Lucro", valor: BRL.format(lucro) });
+    if (r.valorVenda) numeros.push({ rotulo: "Venda", valor: BRL.format(r.valorVenda) });
+    if (r.capitalMaximo !== undefined) {
+      // Cálculo atual: lucro do construtor depois da cascata e o dinheiro que precisa estar disponível.
+      numeros.push({ rotulo: "Seu lucro", valor: BRL.format(r.cenarios?.[0]?.lucroConstrutor ?? 0) });
+      numeros.push({ rotulo: r.temInvestidor === false ? "Precisa ter" : "Investidor põe", valor: BRL.format(r.capitalMaximo) });
+    } else {
+      if (custoComTerreno) numeros.push({ rotulo: "Custo total", valor: BRL.format(custoComTerreno) });
+      const lucro = r.lucroDesejado ?? item.lucro_desejado ?? 0;
+      if (lucro) numeros.push({ rotulo: "Lucro", valor: BRL.format(lucro) });
+    }
   } else if (proposta && resumo) {
     numeros.push({ rotulo: "Custo total", valor: BRL.format(resumo.custoTotal) });
     numeros.push({ rotulo: "Do bolso", valor: BRL.format(proposta.pagamento.bolso) });
@@ -48,7 +57,7 @@ export function ResumoSimulacao({ item }: { item: Tables<"simulacoes"> }) {
     numeros.push({ rotulo: "Custo total", valor: BRL.format(custoComTerreno) });
   }
   // Simulações salvas com uma versão anterior do cálculo não guardam todos os números.
-  const antiga = item.objetivo === "vender" ? r.valorVenda === undefined : !proposta;
+  const antiga = item.objetivo === "vender" ? r.capitalMaximo === undefined : !proposta;
   return (
     <>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
