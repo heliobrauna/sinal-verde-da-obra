@@ -65,12 +65,32 @@ describe("projeção financeira", () => {
     expect(result.jurosObra).toBeGreaterThan(0);
   });
 
+  it("sugere o preço que paga o retorno mínimo do investidor e o lucro desejado do construtor", () => {
+    const parceiro = calculate({ ...input, prazo: 3, participacaoInvestidor: 50, lucroConstrutor: 40000 });
+    const c = parceiro.cenarios[0]!;
+    expect(parceiro.valorVenda).toBeCloseTo(parceiro.precoSugerido);
+    expect(c.lucroConstrutor).toBeCloseTo(40000, 0);
+    expect(c.preferencialPago).toBeCloseTo(parceiro.retornoPreferencial, 0);
+    expect(parceiro.precoSugerido).toBeGreaterThan(parceiro.precoMinimo);
+    const sozinho = calculate({ ...input, prazo: 3, temInvestidor: false, lucroConstrutor: 40000 });
+    expect(sozinho.cenarios[0]!.lucroConstrutor).toBeCloseTo(40000, 0);
+    // O cenário de atraso mantém o preço sugerido; vender 10% abaixo derruba o lucro.
+    expect(parceiro.cenarios[2]?.venda).toBeCloseTo(parceiro.valorVenda);
+    expect(parceiro.cenarios[1]!.lucroConstrutor).toBeLessThan(c.lucroConstrutor);
+  });
+
+  it("confere o preço sugerido com o m² de casa pronta na região", () => {
+    const result = calculate({ ...input, precoM2Mercado: 4000 });
+    expect(result.precoMercadoEstimado).toBeCloseTo(4000 * result.areaPlanejada);
+    expect(calculate(input).precoMercadoEstimado).toBe(0);
+  });
+
   it("atualiza o preço com projetos, lucro e área sem duplicar honorários", () => {
     const initial = calculate(input);
     const extra = calculate({ ...input, despesas: input.despesas.map((item) => ({ ...item, valor: item.valor + 5000 })) });
-    expect(extra.valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
-    expect(calculate({ ...input, lucro: 35000 }).valorVenda - initial.valorVenda).toBeCloseTo(5000 / 0.95);
-    expect(calculate({ ...input, areaPlanejada: 125 }).valorVenda - initial.valorVenda).toBeCloseTo(10000 / 0.95);
+    expect(extra.precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(5000 / 0.95);
+    expect(calculate({ ...input, lucro: 35000 }).precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(5000 / 0.95);
+    expect(calculate({ ...input, areaPlanejada: 125 }).precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(10000 / 0.95);
     expect(estimatedExpenses(0, 0, 0, 0, 0, 0, 100).find((item) => item.id === "alvara")?.valor).toBe(252);
   });
 

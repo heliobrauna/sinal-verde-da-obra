@@ -43,6 +43,8 @@ type R = {
   cubReferencia?: { competencia: string; projeto: string; origem: string };
   capitalMaximo?: number;
   precoMinimo?: number;
+  precoSugerido?: number;
+  precoMercadoEstimado?: number;
   precoEquilibrio?: number;
   precoParaLucroConstrutor?: number | null;
   temInvestidor?: boolean;
@@ -275,7 +277,7 @@ function Result() {
     : [
     { label: "Área viável", value: !hasValue(areaMax) ? undefined : areaMin === areaMax ? m2(areaMin) : `${NUMBER.format(areaMin)} a ${m2(areaMax)}`, detail: hasValue(r.areaPlanejada) ? `Planejada: ${m2(r.areaPlanejada)}` : undefined, tone: "text-primary" },
     vender
-      ? { label: vendaAtual ? "Preço de venda esperado" : "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
+      ? { label: vendaAtual ? (r.precoSugerido !== undefined ? "Preço de venda sugerido" : "Preço de venda esperado") : "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
       : { label: "Verba disponível para obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
     { label: "Custo total (terreno + obra)", value: hasValue(custoImovel) ? BRL.format(custoImovel ?? 0) : undefined, detail: hasValue(remuneracao) ? `${custoDetalhe} + remuneração ${BRL.format(remuneracao)}` : custoDetalhe },
     vender
@@ -455,9 +457,10 @@ function Result() {
                   <p className="mt-3 border-y py-3 text-sm">Sem investidor parceiro: depois de pagar o banco e devolver o seu capital, todo o lucro fica com você.</p>
                 </>)}
                 {(hasValue(r.corretagemLoteValor) || hasValue(r.irGanhoLote)) && <p className="mt-2 text-xs text-muted-foreground">Terreno no capital pelo valor líquido de venda: descontados {hasValue(r.corretagemLoteValor) ? `corretagem de ${BRL.format(r.corretagemLoteValor)}` : ""}{hasValue(r.corretagemLoteValor) && hasValue(r.irGanhoLote) ? " e " : ""}{hasValue(r.irGanhoLote) ? `IR de ${BRL.format(r.irGanhoLote)} sobre o ganho` : ""}.</p>}
-                {vendaAtual && (hasValue(r.precoMinimo) || hasValue(r.precoParaLucroConstrutor ?? undefined)) && (
+                {vendaAtual && r.precoSugerido !== undefined && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Preço que só devolve o capital: {BRL.format(r.precoEquilibrio ?? 0)}.{investidor && ` Preço mínimo com o retorno do investidor: ${BRL.format(r.precoMinimo ?? 0)}.`}{hasValue(r.precoParaLucroConstrutor ?? undefined) && ` Preço para o seu lucro desejado: ${BRL.format(r.precoParaLucroConstrutor ?? 0)}.`}
+                    Preço sugerido = custos{investidor ? " + retorno mínimo do investidor" : ""} + lucro desejado de {BRL.format(r.lucroConstrutorDesejado ?? 0)}.
+                    {hasValue(r.precoMercadoEstimado) && ` Mercado estimado pelo m² da região: ${BRL.format(r.precoMercadoEstimado)} (${r.precoSugerido > r.precoMercadoEstimado ? "o preço sugerido está acima" : "o preço sugerido está abaixo"}).`}
                   </p>
                 )}
                 {hasValue(r.recebimentoConstrutorLote) && <p className="mt-2 text-xs text-muted-foreground">O construtor recebe {BRL.format(r.recebimentoConstrutorLote)} pelo lote na assinatura.</p>}

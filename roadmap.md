@@ -60,3 +60,4 @@
 - [x] Pré-análise pela renda: quanto o cliente consegue financiar antes do simulador da Caixa
 - [ ] Subsídio das faixas 1 e 2 na pré-análise
 - [ ] Acompanhamento da obra depois do contrato: medição × liberação × caixa
+- [x] Venda: preço sugerido pelos custos + retorno mínimo do investidor + lucro desejado do construtor, com conferência pelo m² da região

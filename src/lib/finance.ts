@@ -82,7 +82,11 @@ export type SimulationInput = {
   projetos?: number;
   honorarios?: number;
   // Preço de venda esperado (mercado). Zero usa o preço de equilíbrio (simulações antigas).
+  // Preço fixo de venda: não vem do formulário (lá o preço é sugerido pelo app); serve ao cenário de
+  // atraso, que mantém o preço, e aos testes da cascata. Registros antigos também o guardam.
   precoVenda?: number;
+  // Preço do m² de casa pronta na região (opcional): só confere o preço sugerido com o mercado.
+  precoM2Mercado?: number;
   // Sem investidor parceiro, o próprio construtor financia e fica com todo o resultado.
   temInvestidor?: boolean;
   // Algumas agências exigem depositar a entrada em dinheiro; sem isso ela é só comprovação de recursos.
@@ -235,12 +239,12 @@ export function parcelasAmortizacao(divida: number, taxaMensal: number, prazo: n
   });
 }
 
-// Na venda, o preço vem do mercado e o resultado é dividido em cascata. O cenário de atraso refaz a conta
-// com mais meses de parcelas até a venda, mantendo o preço.
+// Na venda, o preço sugerido cobre custos, retorno mínimo do investidor e o lucro desejado do construtor; o
+// resultado é dividido em cascata. O cenário de atraso refaz a conta com mais meses de parcelas, mantendo o preço.
 export function calculate(input: SimulationInput) {
   const result = calcular(input);
   if (input.objetivo !== "vender") return result;
-  const atraso = calcular({ ...input, prazo: Math.max(0, Math.floor(input.prazo)) + MESES_ATRASO_VENDA });
+  const atraso = calcular({ ...input, prazo: Math.max(0, Math.floor(input.prazo)) + MESES_ATRASO_VENDA, precoVenda: result.valorVenda });
   const esperado = atraso.cenarios[0];
   return {
     ...result,
@@ -353,10 +357,8 @@ function calcular(input: SimulationInput) {
   const desembolsoProprio = desembolsoAntesContrato + desembolsoAssinatura + desembolsoDuranteObra;
   const maiorEncargoMensal = liberacoesMensais.reduce((max, item) => Math.max(max, item.encargo), 0);
 
-  // Na venda, o preço esperado vem do mercado; sem ele (simulações antigas), custos + lucro informado.
   const vender = input.objetivo === "vender";
   const taxaCorretagem = vender ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
-  const precoInformado = vender && (input.precoVenda ?? 0) > 0;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
   // Após a obra a dívida inteira (lote + obra) entra em amortização; a TR só é considerada na fase de obra.
   const sistemaAmortizacao: SistemaAmortizacao = input.sistemaAmortizacao === "SAC" ? "SAC" : "PRICE";
@@ -463,12 +465,22 @@ function calcular(input: SimulationInput) {
     }
     return alto;
   };
-  // Referências: preço que só devolve o capital e preço que paga também o retorno mínimo do investidor.
+  // Preço sugerido: o lucro da venda precisa pagar o retorno mínimo do investidor e deixar ao construtor o lucro
+  // desejado depois de o investidor levar a parte dele no excedente. Sem parceiro, o lucro todo é do construtor.
+  const lucroAlvoConstrutor = vender ? Math.max(input.lucroConstrutor ?? 0, 0) : 0;
+  const lucroNecessario = !temInvestidor
+    ? lucroAlvoConstrutor
+    : retornoPreferencial + (participacaoInvestidor < 100 ? lucroAlvoConstrutor / (1 - participacaoInvestidor / 100) : 0);
+  const precoSugerido = vender ? precoPara(lucroNecessario) : 0;
+  // Referências internas (relatório do investidor): preço que só devolve o capital e o que paga o retorno mínimo.
   const precoEquilibrio = vender ? precoPara(0) : 0;
   const precoMinimo = vender ? precoPara(retornoPreferencial) : 0;
-  const valorVenda = vender ? (precoInformado ? input.precoVenda ?? 0 : precoEquilibrio) : recursosUtilizaveis;
-  const lucroAlvoConstrutor = 0;
-  const precoParaLucroConstrutor = null as number | null;
+  const precoFixo = vender && (input.precoVenda ?? 0) > 0 ? input.precoVenda ?? 0 : 0;
+  const valorVenda = vender ? precoFixo || precoSugerido : recursosUtilizaveis;
+  const precoInformado = vender && custoM2 > 0;
+  const precoParaLucroConstrutor = vender ? precoSugerido : null;
+  // Conferência com o mercado: m² de casa pronta na região × área planejada.
+  const precoMercadoEstimado = vender && (input.precoM2Mercado ?? 0) > 0 ? (input.precoM2Mercado ?? 0) * areaPlanejada : 0;
   const cenarios = [0, -QUEDA_PRECO_CENARIO].map((ajuste) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
@@ -507,7 +519,7 @@ function calcular(input: SimulationInput) {
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
     lucroDesejado: lucroOperacao, mesesAposObra, precoInformado, custoImovel, remuneracaoDetalhe,
     despesasVenda, custoAquisicaoIr, fatorReducao, irVenda: vender ? irNaVenda(valorVenda) : 0, ganhoCapitalVenda: vender ? ganhoCapital(valorVenda) : 0,
-    precoEquilibrio, precoMinimo, precoParaLucroConstrutor, lucroAlvoConstrutor, temInvestidor, entradaDepositada,
+    precoEquilibrio, precoMinimo, precoParaLucroConstrutor, lucroAlvoConstrutor, precoSugerido, precoMercadoEstimado, temInvestidor, entradaDepositada,
     obraAlemFinanciamento, folgaFinanciamento, entradaAplicada, dividaNaVenda, capitalMaximo, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
     capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,

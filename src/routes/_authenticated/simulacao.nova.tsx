@@ -115,8 +115,8 @@ const HELP = {
   seguros: "Seguro Morte e Invalidez (MIP), Danos Físicos (DFI) e tarifa de administração cobrados todo mês desde a assinatura. Copie os valores da 1ª prestação no simulador da Caixa.",
   remuneracao: "Tudo o que o construtor recebe sai da verba da obra e reduz a área viável do mesmo jeito, para morar ou para vender. Informe só o valor global (considerando o resto incluso) ou detalhe cada parte para ela aparecer discriminada no relatório. Ex.: um corretor pode simular só a administração do processo; um correspondente com escritório parceiro, administração + projetos; um construtor, o valor global.",
   parteConstrutor: "Além da remuneração, quanto do lucro da venda fica com o construtor. Antes da divisão, o investidor recebe o capital de volta e um retorno mínimo. Zero: todo o lucro da venda é do investidor.",
-  precoVenda: "Quanto o mercado paga por esta casa pronta. Da venda saem corretagem, IR de 15% sobre o ganho e a quitação do financiamento; ITBI e registro são do comprador. O que sobra devolve o capital de quem financiou e é o lucro da venda.",
-  precoM2Mercado: "Veja anúncios de casas parecidas no bairro e divida o preço pela área. Exemplo: casa de 120 m² anunciada por R$ 480 mil → R$ 4.000 por m². Use a média de 3 ou 4 anúncios.",
+  lucroVenda: "Quanto você quer ganhar na venda, além da remuneração da obra. O app calcula o preço que paga todos os custos, a corretagem, o IR, o retorno mínimo do investidor e ainda deixa este lucro para você.",
+  precoM2Mercado: "Opcional, só para conferir se o preço sugerido é realista. Veja anúncios de casas parecidas no bairro e divida o preço pela área (ex.: 120 m² por R$ 480 mil = R$ 4.000/m²). Use a média de 3 ou 4 anúncios.",
   entradaDepositada: "Na maioria das operações a entrada em dinheiro é só comprovação de recursos: fica na conta, e o investidor aplica apenas o que a obra real pedir além do financiamento. Marque se a agência exigir o depósito; aí a entrada sai na assinatura e o que a obra não usar volta no fim.",
   corretagemLote: "Comissão que o investidor pagaria para vender o lote hoje. O lote entra no capital pelo valor líquido, que é o que ele de fato receberia.",
   custoAquisicaoLote: "Quanto foi pago pelo lote, como consta na declaração de IR. A diferença até o valor de hoje também é ganho e paga IR na venda da casa. Em branco, o app considera o valor informado do lote.",
@@ -128,21 +128,23 @@ const HELP = {
   financiamento: "Valor que o banco empresta. Primeiro quita o saldo devedor do lote, se houver; o restante é liberado em parcelas conforme a medição da obra, nunca de uma vez.",
 };
 
-// Referências de preço: até onde a venda devolve o capital, paga o retorno mínimo do investidor e dá o lucro desejado.
-function PrecoReferencias({ result, precoVenda }: { result: ReturnType<typeof calculate>; precoVenda: number }) {
-  const status =
-    precoVenda <= 0 ? null
-    : precoVenda < result.precoEquilibrio ? { cor: "border-destructive/40 bg-destructive/10 text-destructive", texto: "Abaixo do preço que devolve o capital: a operação dá prejuízo." }
-    : precoVenda < result.precoMinimo ? { cor: "border-destructive/40 bg-destructive/10 text-destructive", texto: "O investidor não recebe o retorno mínimo combinado e o construtor fica sem lucro." }
-    : result.precoParaLucroConstrutor !== null && precoVenda < result.precoParaLucroConstrutor ? { cor: "border-secondary/40 bg-secondary/10 text-secondary", texto: `Você recebe ${BRL.format(Math.max(result.cenarios[0]?.lucroConstrutor ?? 0, 0))}, menos que o lucro desejado.` }
-    : { cor: "border-primary/40 bg-primary/10 text-primary", texto: "O preço paga o capital, o retorno do investidor e o seu lucro." };
+// Preço sugerido = custos + retorno mínimo do investidor + lucro desejado; o m² da região só confere com o mercado.
+function PrecoReferencias({ result }: { result: ReturnType<typeof calculate> }) {
+  if (!result.precoInformado) return null;
+  const mercado = result.precoMercadoEstimado;
+  const diferenca = mercado > 0 ? (result.precoSugerido / mercado - 1) * 100 : 0;
+  const status = mercado <= 0 ? null
+    : diferenca > 0 ? { cor: "border-destructive/40 bg-destructive/10 text-destructive", texto: `O preço sugerido está ${pct(diferenca)} acima do mercado estimado (${BRL.format(mercado)}): pode ser difícil vender. Reduza o lucro desejado, a área ou os custos.` }
+    : { cor: "border-primary/40 bg-primary/10 text-primary", texto: `O preço sugerido está ${pct(-diferenca)} abaixo do mercado estimado (${BRL.format(mercado)}): há margem para vender.` };
   return (
     <div className="rounded-md border px-4 py-3 text-sm md:col-span-2">
-      <ul className="space-y-1.5">
-        <li className="flex justify-between gap-3"><span className="text-muted-foreground">Preço que só devolve o capital</span><strong className="whitespace-nowrap">{BRL.format(result.precoEquilibrio)}</strong></li>
-        {result.temInvestidor && <li className="flex justify-between gap-3"><span className="text-muted-foreground">Preço mínimo (com o retorno mínimo do investidor)</span><strong className="whitespace-nowrap">{BRL.format(result.precoMinimo)}</strong></li>}
-        {result.precoParaLucroConstrutor !== null && <li className="flex justify-between gap-3"><span className="text-muted-foreground">Preço para o seu lucro de {BRL.format(result.lucroAlvoConstrutor)}</span><strong className="whitespace-nowrap">{BRL.format(result.precoParaLucroConstrutor)}</strong></li>}
-      </ul>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <span className="text-muted-foreground">Preço de venda sugerido</span>
+        <strong className="whitespace-nowrap text-lg">{BRL.format(result.precoSugerido)}</strong>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Custos da obra e do terreno, juros, corretagem, IR{result.temInvestidor ? ", retorno mínimo do investidor" : ""} e o seu lucro de {BRL.format(result.lucroAlvoConstrutor)}. Vender por menos reduz o seu lucro (veja o cenário {Math.round(QUEDA_PRECO_CENARIO * 100)}% abaixo).
+      </p>
       {status && <p className={`mt-3 rounded-md border p-2.5 text-xs ${status.cor}`}>{status.texto}</p>}
     </div>
   );
@@ -303,7 +305,6 @@ function Wizard() {
   const [corretagemLote, setCorretagemLote] = useState(5);
   const [custoAquisicaoLote, setCustoAquisicaoLote] = useState(0);
   const [lucroConstrutor, setLucroConstrutor] = useState(0);
-  const [precoVenda, setPrecoVenda] = useState(0);
   const [precoM2Mercado, setPrecoM2Mercado] = useState(0);
   const [temInvestidor, setTemInvestidor] = useState(true);
   const [entradaDepositada, setEntradaDepositada] = useState(false);
@@ -365,8 +366,8 @@ function Wizard() {
   }, [erro, erroVez]);
   const custoReal = maoDeObra + materiais;
   const baseResult = useMemo(
-    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, precoVenda, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoVenda, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, participacaoInvestidor],
+    () => calculate({ credito, terreno, saldoDevedor: situacao === "financiado" ? saldo : 0, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null, precoM2Mercado: objetivo === "vender" ? precoM2Mercado : 0, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada: 0, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, stages: cronograma, liberacoes, despesas: [], participacaoInvestidor }),
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoM2Mercado, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, participacaoInvestidor],
   );
   // ITBI e registro de compra só quando o lote muda de dono na operação.
   const transferenciaLote = origemTerreno !== "investidor" || (situacao === "financiado" && saldo > 0);
@@ -411,14 +412,14 @@ function Wizard() {
         corretagemLote,
         custoAquisicaoLote,
         lucroConstrutor: objetivo === "vender" ? lucroConstrutor : null,
-        precoVenda,
+        precoM2Mercado: objetivo === "vender" ? precoM2Mercado : 0,
         temInvestidor,
         entradaDepositada,
         administracao,
         projetos,
         honorarios,
       }),
-    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoVenda, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, despesas, participacaoInvestidor],
+    [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoM2Mercado, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, areaPlanejada, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, despesas, participacaoInvestidor],
   );
   // Pré-preenchimento vindo da pré-análise pela renda (só em simulação nova).
   useEffect(() => {
@@ -472,7 +473,6 @@ function Wizard() {
       setCorretagemLote(saved.corretagemLote ?? 5); setCustoAquisicaoLote(saved.custoAquisicaoLote ?? 0);
       const venda = saved as { precoVenda?: number; precoM2Mercado?: number; temInvestidor?: boolean; entradaDepositada?: boolean };
       // Simulações antigas: o preço calculado vira o preço esperado; o investidor existia se havia participação.
-      setPrecoVenda(venda.precoVenda ?? (data.objetivo === "vender" ? saved.valorVenda ?? 0 : 0));
       setPrecoM2Mercado(venda.precoM2Mercado ?? 0);
       setTemInvestidor(venda.temInvestidor ?? ((saved.participacaoInvestidor ?? 0) > 0 || (saved.aportesInvestidor?.length ?? 0) > 0));
       setEntradaDepositada(venda.entradaDepositada ?? false);
@@ -536,7 +536,7 @@ function Wizard() {
   }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   // Rascunho no navegador: o preenchimento sobrevive a recarregar a página ou sair sem salvar.
   const chaveRascunho = `sinal-verde:rascunho:${editar ?? "nova"}`;
-  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoVenda, precoM2Mercado, temInvestidor, entradaDepositada }), [step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoVenda, precoM2Mercado, temInvestidor, entradaDepositada]);
+  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, temInvestidor, entradaDepositada }), [step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, temInvestidor, entradaDepositada]);
   const [tocado, setTocado] = useState(false);
   const [rascunho, setRascunho] = useState<{ salvoEm: number; dados: Partial<typeof instantaneo> } | null>(null);
   useEffect(() => {
@@ -614,7 +614,6 @@ function Wizard() {
     if (d.honorarios !== undefined) setHonorarios(d.honorarios);
     if (d.primeiroImovelSfh !== undefined) setPrimeiroImovelSfh(d.primeiroImovelSfh);
     if (d.expenseOverrides !== undefined) setExpenseOverrides(d.expenseOverrides);
-    if (d.precoVenda !== undefined) setPrecoVenda(d.precoVenda);
     if (d.precoM2Mercado !== undefined) setPrecoM2Mercado(d.precoM2Mercado);
     if (d.temInvestidor !== undefined) setTemInvestidor(d.temInvestidor);
     if (d.entradaDepositada !== undefined) setEntradaDepositada(d.entradaDepositada);
@@ -636,7 +635,6 @@ function Wizard() {
     if (n === 2 && jurosAnuais <= 0) return "Informe a taxa de juros efetiva anual do simulador da Caixa.";
     if (n === 2 && seguroTarifaMensal <= 0) return "Informe seguros (MIP e DFI) e tarifa por mês do simulador da Caixa.";
     if (n === 2 && custoReal <= 0) return "Informe mão de obra e materiais por m² para calcular a área.";
-    if (n === 3 && objetivo === "vender" && precoVenda <= 0) return "Informe o preço de venda esperado (o que o mercado paga pela casa pronta).";
     return "";
   }
   // Voltar é livre; para avançar, as etapas anteriores ao destino precisam estar completas.
@@ -666,7 +664,7 @@ function Wizard() {
     if (valorImovel < credito || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
       mostrarErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
-    const payloadResult = { ...result, precoVenda: objetivo === "vender" ? precoVenda : 0, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
+    const payloadResult = { ...result, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
     if (custoReal <= 0) { mostrarErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
@@ -1052,14 +1050,10 @@ function Wizard() {
                   <>
                     <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-2">
                       <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-2">Venda do imóvel pronto</p>
-                      {field("Preço de venda esperado", precoVenda, setPrecoVenda, true, HELP.precoVenda)}
+                      {field("Seu lucro desejado na venda", lucroConstrutor, setLucroConstrutor, true, HELP.lucroVenda)}
                       <div>
-                        {field("Preço do m² de casa pronta na região (opcional)", precoM2Mercado, setPrecoM2Mercado, true, HELP.precoM2Mercado)}
-                        {precoM2Mercado > 0 && result.areaPlanejada > 0 && (
-                          <Button type="button" variant="link" className="h-auto whitespace-normal p-0 pt-1.5 text-left text-xs" onClick={() => setPrecoVenda(Math.round(precoM2Mercado * result.areaPlanejada))}>
-                            Usar {NUMBER.format(result.areaPlanejada)} m² × {BRL.format(precoM2Mercado)} = {BRL.format(precoM2Mercado * result.areaPlanejada)}
-                          </Button>
-                        )}
+                        {field("Preço do m² de casa pronta na região (opcional, para conferir)", precoM2Mercado, setPrecoM2Mercado, true, HELP.precoM2Mercado)}
+                        {result.precoMercadoEstimado > 0 && <p className="pt-1.5 text-xs text-muted-foreground">Mercado: {NUMBER.format(result.areaPlanejada)} m² × {BRL.format(precoM2Mercado)} = {BRL.format(result.precoMercadoEstimado)}</p>}
                       </div>
                       <div>
                         <Label>Corretagem (%)</Label>
@@ -1067,7 +1061,7 @@ function Wizard() {
                       </div>
                       {field("Meses após a obra até a venda (0 = vendida na entrega)", prazo, setPrazo, false)}
                       {origemTerreno === "investidor" && result.agioLote > 0 && field("Quanto foi pago pelo lote (para o IR)", custoAquisicaoLote, setCustoAquisicaoLote, true, HELP.custoAquisicaoLote)}
-                      <PrecoReferencias result={result} precoVenda={precoVenda} />
+                      <PrecoReferencias result={result} />
                     </div>
                     <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-2">
                       <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-2">Quem financia no próprio CPF</p>
@@ -1090,7 +1084,7 @@ function Wizard() {
                         </label>
                       )}
                       <CapitalInvestidor result={result} />
-                      {precoVenda > 0 && <CascataVenda result={result} />}
+                      {result.precoInformado && <CascataVenda result={result} />}
                     </div>
                   </>
                 )}
@@ -1110,10 +1104,10 @@ function Wizard() {
                     Valores municipais, cartorários e previdenciários são estimativas editáveis.
                   </p>
                 </div>
-                {objetivo === "vender" && precoVenda > 0 && (
+                {objetivo === "vender" && result.precoInformado && (
                   <div className="md:col-span-2 border-y py-4">
                     <p className="text-sm font-semibold">E se a venda não sair como esperado?</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Mesmo preço vendido {MESES_ATRASO_VENDA} meses depois (mais parcelas no nome do investidor) e venda {Math.round(QUEDA_PRECO_CENARIO * 100)}% abaixo do esperado.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Mesmo preço vendido {MESES_ATRASO_VENDA} meses depois (mais parcelas no nome do investidor) e venda {Math.round(QUEDA_PRECO_CENARIO * 100)}% abaixo do preço sugerido.</p>
                     <div className="mt-4 grid gap-4 sm:grid-cols-3">
                       {result.cenarios.map((c) => (
                         <div key={c.nome} className="border-l border-border pl-3">
@@ -1180,7 +1174,7 @@ function LivePanel({ result, objetivo, renda }: { result: ReturnType<typeof calc
     ...(vender
       ? [
           { label: "Custo total (terreno + obra)", value: semCusto ? "—" : BRL.format(result.custoComTerreno), tone: "" },
-          { label: "Preço de venda", value: result.precoInformado ? BRL.format(result.valorVenda) : "—", tone: "" },
+          { label: "Preço sugerido", value: result.precoInformado ? BRL.format(result.valorVenda) : "—", tone: "" },
           { label: "Ganho do construtor", value: result.precoInformado && !semCusto ? BRL.format(result.cenarios[0]?.ganhoConstrutor ?? 0) : BRL.format(result.remuneracaoResponsavel), tone: "text-primary" },
           { label: result.temInvestidor ? "Investidor precisa ter" : "Você precisa ter", value: semCusto ? "—" : BRL.format(result.capitalMaximo), tone: "text-secondary" },
         ]
