@@ -64,3 +64,4 @@
 - [x] Lucro desejado único: para morar sai da verba; para vender vem do preço e é dividido com o investidor
 - [x] Corretagem sobre a construção no modo morar, paga na assinatura
 - [x] "Investidor precisa ter" em camadas: entrada, custos fora da obra, aporte só acima da área viável, caixa temporário e reserva de atraso
+- [x] Terreno pelas modalidades da Caixa: construção em terreno próprio ou aquisição de terreno e construção (preço e valor já pago)

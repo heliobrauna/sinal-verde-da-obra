@@ -270,6 +270,21 @@ describe("projeção financeira", () => {
     expect(acima.investidorAlemEntrada).toBeCloseTo(10 * 2000, 0);
   });
 
+  it("aquisição de terreno e construção: o que já foi pago é ágio e capital; o construtor vendedor recebe o pagamento do lote", () => {
+    // Lote de R$ 200 mil com R$ 50 mil já pagos ao construtor: banco paga R$ 150 mil (limite de 30% de R$ 500 mil).
+    const atc = calculate({ ...input, origemTerreno: "construtor", terreno: 200000, saldoDevedor: 150000 });
+    expect(atc.agioLote).toBe(50000);
+    expect(atc.agioNaEntrada).toBe(50000);
+    expect(atc.patrimonioTerreno).toBe(50000);
+    expect(atc.quitacaoLote).toBe(150000);
+    expect(atc.recebimentoConstrutorLote).toBe(150000);
+    // Construção em terreno próprio: lote quitado inteiro como ágio, sem pagamento ao vendedor.
+    const ctp = calculate({ ...input, terreno: 200000, saldoDevedor: 0 });
+    expect(ctp.agioLote).toBe(200000);
+    expect(ctp.quitacaoLote).toBe(0);
+    expect(ctp.recebimentoConstrutorLote).toBe(0);
+  });
+
   it("usa todos os recursos operacionais, sem reserva fixa", () => {
     const result = calculate({ ...input, despesas: [], lucro: 0 });
     expect(result.disponivel).toBeCloseTo(result.recursosUtilizaveis);

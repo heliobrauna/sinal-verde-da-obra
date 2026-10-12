@@ -270,7 +270,8 @@ function calcular(input: SimulationInput) {
   const valorOperacao = Math.max(input.valorImovel, credito);
   const entradaExigida = Math.max(valorOperacao - credito, 0);
   // Lote comprado na operação (do construtor ou de terceiro): o preço inteiro é pago ao vendedor e não há ágio.
-  const saldoDevedor = input.origemTerreno === "investidor" ? Math.max(0, input.saldoDevedor) : Math.max(0, input.terreno);
+  // Saldo a pagar ao vendedor (ou à loteadora). Registros antigos de compra de terceiro não guardavam o saldo: preço cheio.
+  const saldoDevedor = input.origemTerreno === "compra" ? Math.max(0, input.terreno) : Math.max(0, input.saldoDevedor);
   const agioLote = Math.max(input.terreno - saldoDevedor, 0);
   // Ágio e FGTS compõem a entrada e reduzem o dinheiro necessário; nenhum dos dois vira caixa extra.
   const agioNaEntrada = Math.min(agioLote, entradaExigida);
@@ -380,7 +381,8 @@ function calcular(input: SimulationInput) {
   const mesesObra = input.liberacoes.length;
   const mesVenda = mesesObra + mesesAposObra;
   // Lote próprio entra como capital pelo valor informado; a valorização dele paga IR na venda da casa pronta.
-  const loteProprio = input.origemTerreno === "investidor" && agioLote > 0;
+  // O que quem financia já pagou pelo lote é patrimônio dele na operação, seja qual for o vendedor.
+  const loteProprio = agioLote > 0;
   const corretagemLoteValor = 0;
   const irGanhoLote = 0;
   const patrimonioTerreno = loteProprio ? agioLote : 0;
@@ -437,7 +439,8 @@ function calcular(input: SimulationInput) {
     (sum, flow) => sum + flow.valor * (Math.pow(1 + taxaPreferencialMensal, (flow.retornoMes ?? mesVenda) - flow.mes) - 1),
     0,
   );
-  const recebimentoConstrutorLote = input.origemTerreno === "construtor" ? input.terreno : 0;
+  // Lote vendido pelo construtor: na assinatura ele recebe o que o banco paga pelo lote.
+  const recebimentoConstrutorLote = input.origemTerreno === "construtor" ? quitacaoLote : 0;
   const participacaoInvestidor = temInvestidor ? Math.min(100, Math.max(0, input.participacaoInvestidor)) : 0;
   // Na venda, o banco recebe o saldo devedor e a folga do financiamento volta ao caixa. O vendedor paga
   // corretagem, IR sobre o ganho de capital e as despesas da venda; ITBI e registro são do comprador.

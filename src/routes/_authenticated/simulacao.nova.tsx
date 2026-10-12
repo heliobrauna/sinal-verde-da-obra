@@ -101,13 +101,15 @@ const ufs = [
 const STEP_LABELS = ["Partida", "Orçamento", "Viabilidade", "Cronograma"];
 // Etapas: 1 ponto de partida, 2 orçamento, 3 viabilidade, 4 cronograma (com a área planejada definida).
 const categories = ["Despesas iniciais", "Assinatura do contrato", "Durante a obra", "Na venda"] as const;
-const ORIGEM_NOTA: Record<OrigemTerreno, string> = {
-  investidor: "O ágio do lote compõe a entrada e conta como capital do investidor, com retorno preferencial. Lote quitado e registrado no nome dele não paga ITBI nem registro de compra.",
-  construtor: "O construtor vende o lote ao investidor: há ITBI e registro, e o ágio não serve de entrada: ela vem de dinheiro (ou de FGTS, só ao construir para morar). O construtor recebe o preço do lote na assinatura e pode usá-lo para iniciar a obra.",
-  compra: "O lote é comprado de terceiro na operação: há ITBI e registro, não existe ágio e a entrada precisa vir de dinheiro (ou de FGTS, só ao construir para morar).",
+// Modalidades da Caixa: o que decide é se o lote já está quitado e registrado no nome de quem vai financiar.
+type ModalidadeTerreno = "ctp" | "atc";
+const MODALIDADE_NOTA: Record<ModalidadeTerreno, string> = {
+  ctp: "Lote quitado e registrado no nome de quem vai financiar: o cliente que vai morar, o investidor ou o próprio construtor, quando é ele quem financia. O valor inteiro conta como entrada (ágio) e não há ITBI nem registro de compra.",
+  atc: "O lote passa para o nome de quem financia no contrato: lote de loteadora ainda sendo pago, de terceiro ou do construtor. O que já foi pago conta como entrada; o banco paga o restante ao vendedor na assinatura (até 30% do contrato). Há ITBI e registro.",
 };
 const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const HELP = {
+  jaPagoLote: "Parte do preço que quem vai financiar já pagou ao vendedor (sinal ou parcelas da loteadora). Conta como entrada; o restante o banco paga ao vendedor na assinatura. Zero se ainda não pagou nada.",
   sistema: "Use o mesmo do simulador da Caixa. No PRICE a parcela é fixa; no SAC a primeira é a maior e as seguintes diminuem. Vale para depois da obra.",
   prazo: "Prazo de pagamento do financiamento no simulador da Caixa (até 420 meses). A prestação estimada usa este prazo, sem a TR, como o simulador.",
   juros: "Taxa efetiva anual mostrada pelo simulador da Caixa. Na fase de obra, os juros mensais são a taxa nominal ÷ 12, cobrados sobre a dívida já liberada (lote + parcelas medidas).",
@@ -313,8 +315,6 @@ function Wizard() {
   const [step, setStep] = useState(1);
   const [nome, setNome] = useState("Minha obra");
   const [terreno, setTerreno] = useState(0);
-  const [situacao, setSituacao] = useState<"quitado" | "financiado">("quitado");
-  const [origemTerreno, setOrigemTerreno] = useState<OrigemTerreno>("investidor");
   const [selicAnual, setSelicAnual] = useState(0);
   const [selicFonte, setSelicFonte] = useState("");
   const [premioInvestidor, setPremioInvestidor] = useState(5);
@@ -325,7 +325,13 @@ function Wizard() {
   const [corretagemConstrucao, setCorretagemConstrucao] = useState(0);
   const [temInvestidor, setTemInvestidor] = useState(true);
   const [entradaDepositada, setEntradaDepositada] = useState(false);
-  const [saldo, setSaldo] = useState(0);
+  const [modalidadeTerreno, setModalidadeTerreno] = useState<ModalidadeTerreno>("ctp");
+  const [jaPagoLote, setJaPagoLote] = useState(0);
+  const [vendedorConstrutor, setVendedorConstrutor] = useState(false);
+  // CTP: lote quitado, sem saldo. ATC: o saldo é o que falta pagar ao vendedor.
+  const situacao: "quitado" | "financiado" = modalidadeTerreno === "atc" ? "financiado" : "quitado";
+  const saldo = modalidadeTerreno === "atc" ? Math.max(terreno - jaPagoLote, 0) : 0;
+  const origemTerreno: OrigemTerreno = modalidadeTerreno === "atc" && vendedorConstrutor ? "construtor" : "investidor";
   const [renda, setRenda] = useState(0);
   const [credito, setCredito] = useState(0);
   const [estado, setEstado] = useState("");
@@ -387,7 +393,7 @@ function Wizard() {
     [credito, terreno, situacao, saldo, origemTerreno, selicAnual, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada, administracao, projetos, honorarios, valorImovel, fgtsUtilizado, cub, maoDeObra, materiais, extras, objetivo, lucro, corretagem, prazo, jurosAnuais, trMensal, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, cronograma, liberacoes, participacaoInvestidor],
   );
   // ITBI e registro de compra só quando o lote muda de dono na operação.
-  const transferenciaLote = origemTerreno !== "investidor" || (situacao === "financiado" && saldo > 0);
+  const transferenciaLote = modalidadeTerreno === "atc";
   const estimates = useMemo(
     // Alvará e INSS acompanham a área planejada; antes de defini-la, usam a área viável.
     () => estimatedExpenses(terreno, credito, projetos, administracao, honorarios, cub, areaPlanejada > 0 ? areaPlanejada : baseResult.areaViavelMaxima, estado, primeiroImovelSfh, transferenciaLote, objetivo === "vender"),
@@ -448,7 +454,7 @@ function Wizard() {
     if (busca.valorImovel !== undefined) setValorImovel(busca.valorImovel);
     if (busca.fgts !== undefined) setFgtsUtilizado(busca.fgts);
     if (busca.terreno !== undefined) setTerreno(busca.terreno);
-    if (busca.lote) setOrigemTerreno(busca.lote === "proprio" ? "investidor" : "compra");
+    if (busca.lote) setModalidadeTerreno(busca.lote === "proprio" ? "ctp" : "atc");
     if (busca.juros !== undefined) setJurosAnuais(busca.juros);
     if (busca.prazoFin) setPrazoFinanciamento(busca.prazoFin);
     if (busca.sistema) setSistemaAmortizacao(busca.sistema);
@@ -462,8 +468,8 @@ function Wizard() {
       if (!active) return;
       if (error || !data) { mostrarErro("Simulação não encontrada ou sem permissão para editar."); setLoadingEdit(false); return; }
        const saved = data.resultado as unknown as Partial<ReturnType<typeof calculate>> & { projetos?: number; administracao?: number; honorarios?: number; expenseOverrides?: Record<string, number>; cubReferencia?: CubReference; primeiroImovelSfh?: boolean; corretagemLote?: number; custoAquisicaoLote?: number };
-      setNome(data.nome); setTerreno(data.terreno_valor); setSituacao(data.terreno_situacao as "quitado" | "financiado");
-      setSaldo(data.saldo_devedor_terreno ?? 0); setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
+      setNome(data.nome); setTerreno(data.terreno_valor);
+      setRenda(data.renda_declarada); setCredito(data.credito_aprovado);
       setEstado(data.estado); setPadrao(data.padrao_acabamento as "baixo" | "normal" | "alto");
       setSavedCub(data.cub_valor_m2);
       if (saved.cubReferencia) setCubRef(saved.cubReferencia as CubReference);
@@ -486,7 +492,13 @@ function Wizard() {
       setCorretagem(saved.corretagemPercentual ?? 5); setPrazo(saved.mesesAposObra ?? data.prazo_venda_meses ?? 0);
        setParticipacaoInvestidor(saved.participacaoInvestidor ?? 0);
       setPrimeiroImovelSfh(saved.primeiroImovelSfh ?? false);
-      setOrigemTerreno(saved.origemTerreno ?? "investidor");
+      // Registros antigos: próprio quitado = CTP; próprio com saldo, do construtor ou de terceiro = ATC.
+      const lote = saved as { modalidadeTerreno?: ModalidadeTerreno; jaPagoLote?: number; vendedorConstrutor?: boolean };
+      const origemSalva = saved.origemTerreno ?? "investidor";
+      const saldoSalvo = data.saldo_devedor_terreno ?? 0;
+      setModalidadeTerreno(lote.modalidadeTerreno ?? (origemSalva === "investidor" && (data.terreno_situacao !== "financiado" || saldoSalvo <= 0) ? "ctp" : "atc"));
+      setJaPagoLote(lote.jaPagoLote ?? (origemSalva === "investidor" ? Math.max(data.terreno_valor - saldoSalvo, 0) : 0));
+      setVendedorConstrutor(lote.vendedorConstrutor ?? origemSalva === "construtor");
       setPremioInvestidor(saved.premioInvestidor ?? 5);
       setCorretagemLote(saved.corretagemLote ?? 5); setCustoAquisicaoLote(saved.custoAquisicaoLote ?? 0);
       const venda = saved as { precoVenda?: number; precoM2Mercado?: number; temInvestidor?: boolean; entradaDepositada?: boolean };
@@ -555,7 +567,7 @@ function Wizard() {
   }, [areaPlanejada, baseResult.areaViavelMinima, loadingEdit, prazoEditado, prazoExecucao]);
   // Rascunho no navegador: o preenchimento sobrevive a recarregar a página ou sair sem salvar.
   const chaveRascunho = `sinal-verde:rascunho:${editar ?? "nova"}`;
-  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada }), [step, nome, terreno, situacao, origemTerreno, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada]);
+  const instantaneo = useMemo(() => ({ step, nome, terreno, situacao, modalidadeTerreno, jaPagoLote, vendedorConstrutor, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada }), [step, nome, terreno, modalidadeTerreno, jaPagoLote, vendedorConstrutor, selicAnual, selicFonte, premioInvestidor, corretagemLote, custoAquisicaoLote, lucroConstrutor, saldo, renda, credito, estado, padrao, savedCub, valorImovel, fgtsUtilizado, jurosAnuais, trMensal, trFonte, seguroTarifaMensal, sistemaAmortizacao, prazoFinanciamento, maoDeObra, materiais, areaPlanejada, extras, cronograma, prazoExecucao, liberacoes, prazoEditado, objetivo, lucro, corretagem, prazo, participacaoInvestidor, projetos, administracao, honorarios, primeiroImovelSfh, expenseOverrides, precoM2Mercado, corretagemConstrucao, temInvestidor, entradaDepositada]);
   const [tocado, setTocado] = useState(false);
   const [rascunho, setRascunho] = useState<{ salvoEm: number; dados: Partial<typeof instantaneo> } | null>(null);
   useEffect(() => {
@@ -593,15 +605,15 @@ function Wizard() {
     if (d.step !== undefined) setStep(d.step);
     if (d.nome !== undefined) setNome(d.nome);
     if (d.terreno !== undefined) setTerreno(d.terreno);
-    if (d.situacao !== undefined) setSituacao(d.situacao);
-    if (d.origemTerreno !== undefined) setOrigemTerreno(d.origemTerreno);
+    if (d.modalidadeTerreno !== undefined) setModalidadeTerreno(d.modalidadeTerreno);
+    if (d.jaPagoLote !== undefined) setJaPagoLote(d.jaPagoLote);
+    if (d.vendedorConstrutor !== undefined) setVendedorConstrutor(d.vendedorConstrutor);
     if (d.selicAnual !== undefined) setSelicAnual(d.selicAnual);
     if (d.selicFonte !== undefined) setSelicFonte(d.selicFonte);
     if (d.premioInvestidor !== undefined) setPremioInvestidor(d.premioInvestidor);
     if (d.corretagemLote !== undefined) setCorretagemLote(d.corretagemLote);
     if (d.custoAquisicaoLote !== undefined) setCustoAquisicaoLote(d.custoAquisicaoLote);
     if (d.lucroConstrutor !== undefined) setLucroConstrutor(d.lucroConstrutor);
-    if (d.saldo !== undefined) setSaldo(d.saldo);
     if (d.renda !== undefined) setRenda(d.renda);
     if (d.credito !== undefined) setCredito(d.credito);
     if (d.estado !== undefined) setEstado(d.estado);
@@ -684,7 +696,7 @@ function Wizard() {
     if (valorImovel < credito || Math.abs(liberacoes.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01 || Math.abs(cronograma.reduce((sum, item) => sum + item.percentual, 0) - 100) > 0.01) {
       mostrarErro("Revise o valor do imóvel e os dois cronogramas: cada cronograma deve somar 100%."); return;
     }
-    const payloadResult = { ...result, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
+    const payloadResult = { ...result, modalidadeTerreno, jaPagoLote, vendedorConstrutor, precoM2Mercado, cubReferencia: cubRef, projetos, administracao, honorarios, expenseOverrides, primeiroImovelSfh, corretagemLote, custoAquisicaoLote };
     if (custoReal <= 0) { mostrarErro("Informe o custo real por m²."); setStep(2); return; }
     const payload = {
         nome,
@@ -785,27 +797,25 @@ function Wizard() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label>Origem do terreno</Label>
-                  <select className="mt-2 h-11 w-full rounded-md border bg-background px-3" value={origemTerreno} onChange={(e) => setOrigemTerreno(e.target.value as OrigemTerreno)}>
-                    <option value="investidor">Próprio (de quem vai financiar)</option>
-                    <option value="construtor">Do construtor, vendido na operação</option>
-                    <option value="compra">Comprado de terceiro na operação</option>
-                  </select>
-                  <p className="mt-2 text-xs text-muted-foreground">{ORIGEM_NOTA[origemTerreno]}</p>
+                  <Label>Modalidade do terreno</Label>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {([["ctp", "Construção em terreno próprio"], ["atc", "Aquisição de terreno e construção"]] as const).map(([valor, rotulo]) => (
+                      <Button key={valor} type="button" variant={modalidadeTerreno === valor ? "default" : "outline"} className="h-auto min-h-11 whitespace-normal py-2" onClick={() => setModalidadeTerreno(valor)}>{rotulo}</Button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{MODALIDADE_NOTA[modalidadeTerreno]}</p>
                 </div>
-                {field(origemTerreno === "investidor" ? "Valor do terreno" : "Preço de compra do terreno", terreno, setTerreno)}
-                {origemTerreno === "investidor" && <div>
-                  <Label>Situação do terreno</Label>
-                  <select
-                    className="mt-2 h-11 w-full rounded-md border bg-background px-3"
-                    value={situacao}
-                    onChange={(e) => setSituacao(e.target.value as typeof situacao)}
-                  >
-                    <option value="quitado">Quitado</option>
-                    <option value="financiado">Financiado</option>
-                  </select>
-                </div>}
-                {origemTerreno === "investidor" && situacao === "financiado" && field("Saldo devedor", saldo, setSaldo)}
+                {field(modalidadeTerreno === "ctp" ? "Valor do terreno" : "Preço do terreno", terreno, setTerreno)}
+                {modalidadeTerreno === "atc" && field("Quanto já foi pago pelo lote", jaPagoLote, setJaPagoLote, true, HELP.jaPagoLote)}
+                {modalidadeTerreno === "atc" && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm md:col-span-2" htmlFor="vendedor-construtor">
+                    <Checkbox id="vendedor-construtor" className="mt-0.5" checked={vendedorConstrutor} onCheckedChange={(checked) => setVendedorConstrutor(checked === true)} />
+                    <span>
+                      <strong className="block">O vendedor do lote é o construtor</strong>
+                      <span className="text-muted-foreground">Ele recebe o pagamento do lote na assinatura e pode usá-lo para começar a obra.</span>
+                    </span>
+                  </label>
+                )}
                 {field("Renda declarada", renda, setRenda)}
                 <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-3">
                   <p className="text-xs font-semibold uppercase text-muted-foreground md:col-span-3">Simulador da Caixa</p>
@@ -843,7 +853,7 @@ function Wizard() {
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">Orçamento da obra no contrato (imóvel − terreno): <strong className="text-foreground">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
                   {baseResult.financiamentoExcedente > 0 && <p className="mt-3 text-xs text-secondary">O ágio cobre mais que a entrada: o banco tende a liberar no máximo {BRL.format(baseResult.financiamentoConstrucao)} para a obra ({BRL.format(baseResult.financiamentoExcedente)} a menos que o valor informado).</p>}
-                  {(origemTerreno !== "investidor" || situacao === "financiado") && <p className="mt-3 text-xs text-muted-foreground">{origemTerreno === "investidor" ? "Quitação do lote pelo banco" : "Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Limite para o lote: 30% do contrato ({BRL.format(baseResult.limiteFinanciavelLote)}).{baseResult.saldoLoteNaoCoberto > 0 && " O excedente sai da entrada em dinheiro."}</p>}
+                  {modalidadeTerreno === "atc" && <p className="mt-3 text-xs text-muted-foreground">{"Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Limite para o lote: 30% do contrato ({BRL.format(baseResult.limiteFinanciavelLote)}).{baseResult.saldoLoteNaoCoberto > 0 && " O excedente sai da entrada em dinheiro."}</p>}
                 </div>
               </div>
             )}
@@ -1080,7 +1090,7 @@ function Wizard() {
                         <NumericInput className="mt-2 h-11" min="0" max="99.99" value={corretagem} decimals={2} onValueChange={setCorretagem} />
                       </div>
                       {field("Meses após a obra até a venda (0 = vendida na entrega)", prazo, setPrazo, false)}
-                      {origemTerreno === "investidor" && result.agioLote > 0 && field("Quanto foi pago pelo lote (para o IR)", custoAquisicaoLote, setCustoAquisicaoLote, true, HELP.custoAquisicaoLote)}
+                      {modalidadeTerreno === "ctp" && result.agioLote > 0 && field("Quanto foi pago pelo lote (para o IR)", custoAquisicaoLote, setCustoAquisicaoLote, true, HELP.custoAquisicaoLote)}
                       <PrecoReferencias result={result} />
                     </div>
                     <div className="grid gap-5 rounded-md border p-4 md:col-span-2 md:grid-cols-2">
