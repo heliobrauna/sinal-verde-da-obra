@@ -67,6 +67,37 @@ function Comparacao({ data }: { data: RelatorioInvestidorData }) {
   );
 }
 
+// Barra empilhada com o destino de cada real da venda esperada.
+function DestinoVenda({ data }: { data: RelatorioInvestidorData }) {
+  const partes = [
+    { rotulo: "Corretagem", valor: data.venda.corretagem, cor: "#a1a1aa" },
+    { rotulo: "IR sobre o ganho", valor: data.venda.ir, cor: "#ef4444" },
+    { rotulo: "Despesas da venda", valor: data.venda.despesas, cor: "#d4d4d8" },
+    { rotulo: "Quitação do financiamento", valor: data.venda.banco, cor: "#0ea5e9" },
+    { rotulo: "Seu capital de volta", valor: data.venda.capital, cor: "#8b5cf6" },
+    { rotulo: "Seu lucro", valor: data.venda.lucro, cor: "#10b981" },
+    { rotulo: "Parte do construtor", valor: data.venda.construtor, cor: "#f59e0b" },
+  ].filter((parte) => parte.valor > 0.005);
+  const total = partes.reduce((sum, parte) => sum + parte.valor, 0) || 1;
+  return (
+    <div>
+      <p className="text-sm text-zinc-600">Venda esperada de <strong className="text-zinc-900">{BRL.format(data.precoVenda)}</strong>:</p>
+      <div className="mt-3 flex h-4 overflow-hidden rounded-full">
+        {partes.map((parte) => <span key={parte.rotulo} style={{ width: `${(parte.valor / total) * 100}%`, backgroundColor: parte.cor }} />)}
+      </div>
+      <ul className="mt-4 grid gap-2 text-sm @md:grid-cols-2">
+        {partes.map((parte) => (
+          <li key={parte.rotulo} className="flex items-center gap-3">
+            <span className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: parte.cor }} />
+            <span className="min-w-0 flex-1 text-zinc-600">{parte.rotulo}</span>
+            <span className="shrink-0 whitespace-nowrap font-semibold">{BRL.format(parte.valor)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function RelatorioInvestidor({ data }: { data: RelatorioInvestidorData }) {
   const { titulo, texto } = sinal(data);
   return (
@@ -93,7 +124,7 @@ export function RelatorioInvestidor({ data }: { data: RelatorioInvestidorData })
           <Bloco titulo="Quanto você precisa ter">
             <p className="text-3xl font-bold">{BRL.format(data.capitalMaximo)}</p>
             <p className="mt-1 text-sm text-zinc-600">É o máximo de dinheiro seu aplicado ao mesmo tempo. Ele não sai todo de uma vez: entra em etapas e uma parte volta no fim da obra.</p>
-            {data.terreno > 0.005 && <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs text-zinc-600">Seu terreno também entra na operação, valendo {BRL.format(data.terreno)} (o que você receberia vendendo-o hoje). Ele volta para você na venda, junto com o capital.</p>}
+            {data.terreno > 0.005 && <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs text-zinc-600">Seu terreno também entra na operação, valendo {BRL.format(data.terreno)}. Ele volta para você na venda, junto com o capital.</p>}
           </Bloco>
           <Bloco titulo="Quanto você recebe">
             <p className="text-3xl font-bold text-emerald-700">{BRL.format(data.recebeNaVenda)}</p>
@@ -108,13 +139,24 @@ export function RelatorioInvestidor({ data }: { data: RelatorioInvestidorData })
           <LinhaDoTempo data={data} />
         </Bloco>
 
+        <Bloco titulo="Para onde vai o dinheiro da venda">
+          <DestinoVenda data={data} />
+        </Bloco>
+
         <div className="grid gap-5 md:grid-cols-2">
           <Bloco titulo="Como o lucro é dividido">
-            <ol className="space-y-2 text-sm text-zinc-600">
+            {data.participacao >= 100 ? (
+              <ol className="space-y-2 text-sm text-zinc-600">
+                <li><strong className="text-zinc-900">1. Seu capital volta primeiro.</strong> Depois de pagar o banco, a corretagem e o IR.</li>
+                <li><strong className="text-zinc-900">2. Todo o lucro da venda é seu.</strong> O construtor é pago pela remuneração da obra, que já está nos custos.</li>
+              </ol>
+            ) : (
+              <ol className="space-y-2 text-sm text-zinc-600">
               <li><strong className="text-zinc-900">1. Seu capital volta primeiro.</strong> Antes de qualquer divisão.</li>
               <li><strong className="text-zinc-900">2. Você recebe o retorno mínimo.</strong> {pct(data.taxaMinima)} ao ano sobre o seu capital, pelo tempo que ele ficar aplicado.</li>
               <li><strong className="text-zinc-900">3. O que sobrar é dividido.</strong> {pct(data.participacao)} para você.</li>
-            </ol>
+              </ol>
+            )}
             <p className="mt-3 text-xs text-zinc-500">Ter você como parceiro não aumenta o preço da casa: o preço é o do mercado e o lucro é dividido a partir dele.</p>
           </Bloco>
           <Bloco titulo="E se a venda não sair como esperado?">
@@ -140,7 +182,9 @@ export function RelatorioInvestidor({ data }: { data: RelatorioInvestidorData })
             <li>O financiamento fica no seu nome (CPF), e o imóvel é a garantia do banco até ser vendido e quitado.</li>
             {data.parcelaAtraso > 0.005 && <li>Se a venda atrasar, as parcelas continuam: cerca de {BRL.format(data.parcelaAtraso)} por mês, já contadas no cenário de atraso.</li>}
             <li>{data.entradaDepositada ? "A agência exige depositar a entrada na assinatura; o que a obra não usar volta no fim da obra." : "A entrada exigida pelo banco é comprovação de recursos: você aplica só o que a obra realmente pedir, nas datas acima."}</li>
-            <li>A Selic, o preço de venda e o prazo podem mudar; os valores são estimativas para decidir com segurança.</li>
+            <li>Na venda você paga IR de 15% sobre o ganho de capital (já descontado acima): a construção é averbada e a venda registrada, então o ganho aparece para a Receita. Venda do único imóvel de até R$ 440 mil, ou com o dinheiro reinvestido em outro imóvel residencial em até 180 dias, pode ser isenta.</li>
+            <li>Uma casa no seu lote, vendida pronta, é ganho de capital de pessoa física. Construir mais de duas unidades ou comprar e vender com frequência pode equiparar você a empresa (RIR/2018, art. 162): converse com um contador.</li>
+            <li>ITBI e registro da compra são pagos por quem compra; a Selic, o preço de venda e o prazo podem mudar. Os valores são estimativas para decidir com segurança.</li>
           </ul>
         </Bloco>
 

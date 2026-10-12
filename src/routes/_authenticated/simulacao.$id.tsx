@@ -253,7 +253,9 @@ function Result() {
   // a verba do banco que sobra aparece como desconto para a soma fechar.
   const sobra = Math.max(r.saldoRecursos ?? 0, 0);
   // Para morar, a remuneração do responsável sai da verba da obra e faz parte do custo do imóvel.
-  const remuneracao = vender ? 0 : (r.remuneracaoResponsavel ?? lucro);
+  // Remuneração do construtor: nos dois modos quando o cálculo é atual; vendas antigas não a reservavam.
+  const detalheRemuneracao = (r as { remuneracaoDetalhe?: { margem: number; administracao: number; projetos: number; honorarios: number } }).remuneracaoDetalhe;
+  const remuneracao = detalheRemuneracao ? (r.remuneracaoResponsavel ?? 0) : vender ? 0 : (r.remuneracaoResponsavel ?? lucro);
   const custoImovel = hasValue(custoComTerreno) ? custoComTerreno + remuneracao : undefined;
   const proposta = !vender && hasValue(custoComTerreno) && r.desembolsoProprio !== undefined && r.financiamentoConstrucao !== undefined;
   const pagamento: Row[] = [
@@ -275,10 +277,10 @@ function Result() {
     vender
       ? { label: vendaAtual ? "Preço de venda esperado" : "Venda estimada", value: hasValue(r.valorVenda) ? BRL.format(r.valorVenda) : undefined, detail: hasValue(r.corretagemValor) ? `Corretagem ${BRL.format(r.corretagemValor)}` : undefined }
       : { label: "Verba disponível para obra", value: hasValue(r.recursosUtilizaveis) ? BRL.format(r.recursosUtilizaveis) : undefined },
-    { label: "Custo total (terreno + obra)", value: hasValue(custoComTerreno) ? BRL.format(custoComTerreno) : undefined, detail: custoDetalhe },
+    { label: "Custo total (terreno + obra)", value: hasValue(custoImovel) ? BRL.format(custoImovel ?? 0) : undefined, detail: hasValue(remuneracao) ? `${custoDetalhe} + remuneração ${BRL.format(remuneracao)}` : custoDetalhe },
     vender
       ? esperado
-        ? { label: "Seu lucro", value: BRL.format(esperado.lucroConstrutor ?? 0), detail: investidor ? `Lucro da operação ${BRL.format(esperado.saldo)}, dividido em cascata com o investidor` : `Lucro da operação ${BRL.format(esperado.saldo)}`, tone: (esperado.lucroConstrutor ?? 0) > 0 ? "text-primary" : "text-destructive" }
+        ? { label: "Ganho do construtor", value: BRL.format((esperado as { ganhoConstrutor?: number }).ganhoConstrutor ?? esperado.lucroConstrutor ?? 0), detail: `Remuneração ${BRL.format(remuneracao)} + ${BRL.format(esperado.lucroConstrutor ?? 0)} na venda · lucro da venda ${BRL.format(esperado.saldo)}${investidor ? ", dividido com o investidor" : ""}`, tone: "text-primary" }
         : { label: r.lucroConstrutorDesejado != null ? "Lucro total na venda" : "Lucro desejado", value: hasValue(lucro) ? BRL.format(lucro) : undefined, detail: hasValue(r.lucroConstrutorDesejado ?? undefined) ? `Construtor: ${BRL.format(r.lucroConstrutorDesejado ?? 0)}` : undefined, tone: "text-primary" }
       : { label: "Dinheiro do cliente", value: hasValue(r.desembolsoProprio) ? BRL.format(r.desembolsoProprio) : undefined, tone: "text-secondary" },
   ];
@@ -508,7 +510,14 @@ function Result() {
               ["Terreno", item.terreno_valor],
               [hasValue(r.areaPlanejada) ? `Construção (${m2(r.areaPlanejada)})` : "Construção", r.custoConstrucao],
               ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
-              ["Remuneração do responsável", remuneracao],
+              ...(detalheRemuneracao
+                ? ([
+                    ["Remuneração · margem ou valor global", detalheRemuneracao.margem],
+                    ["Remuneração · administração do processo", detalheRemuneracao.administracao],
+                    ["Remuneração · projetos", detalheRemuneracao.projetos],
+                    ["Remuneração · honorários técnicos", detalheRemuneracao.honorarios],
+                  ] as Row[])
+                : [["Remuneração do responsável", remuneracao] as Row]),
               ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
               ...(r.jurosObraJuros !== undefined
                 ? [

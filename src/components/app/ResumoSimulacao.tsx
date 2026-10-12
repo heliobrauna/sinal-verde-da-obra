@@ -18,7 +18,7 @@ type ResumoResultado = {
   lucroDesejado?: number;
   capitalMaximo?: number;
   temInvestidor?: boolean;
-  cenarios?: { lucroConstrutor?: number }[];
+  cenarios?: { lucroConstrutor?: number; ganhoConstrutor?: number }[];
 };
 
 const SINAL: Record<SinalProposta, { rotulo: string; classe: string }> = {
@@ -42,7 +42,7 @@ export function ResumoSimulacao({ item }: { item: Tables<"simulacoes"> }) {
     if (r.valorVenda) numeros.push({ rotulo: "Venda", valor: BRL.format(r.valorVenda) });
     if (r.capitalMaximo !== undefined) {
       // Cálculo atual: lucro do construtor depois da cascata e o dinheiro que precisa estar disponível.
-      numeros.push({ rotulo: "Seu lucro", valor: BRL.format(r.cenarios?.[0]?.lucroConstrutor ?? 0) });
+      numeros.push({ rotulo: "Construtor", valor: BRL.format(r.cenarios?.[0]?.ganhoConstrutor ?? r.cenarios?.[0]?.lucroConstrutor ?? 0) });
       numeros.push({ rotulo: r.temInvestidor === false ? "Precisa ter" : "Investidor põe", valor: BRL.format(r.capitalMaximo) });
     } else {
       if (custoComTerreno) numeros.push({ rotulo: "Custo total", valor: BRL.format(custoComTerreno) });

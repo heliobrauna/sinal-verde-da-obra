@@ -12,7 +12,7 @@ export type PropostaData = {
   areaMax: number;
   areaPlanejada: number;
   renda: number;
-  custos: { terreno: number; construcao: number; documentos: number; juros: number };
+  custos: { terreno: number; construcao: number; documentos: number; juros: number; servicos?: { rotulo: string; valor: number }[] };
   pagamento: { banco: number; fgts: number; terreno: number; bolso: number };
   bolsoDetalhe: { entrada: number; terreno: number; taxas: number; juros: number; area: number };
   folgaBanco: number;
@@ -224,7 +224,7 @@ export type SinalProposta = "verde" | "amarelo" | "vermelho";
 
 // Números-chave da proposta, usados também nos cards da lista de simulações.
 export function resumoProposta(data: PropostaData) {
-  const custoTotal = data.custos.terreno + data.custos.construcao + data.custos.documentos + data.custos.juros;
+  const custoTotal = data.custos.terreno + data.custos.construcao + data.custos.documentos + data.custos.juros + (data.custos.servicos ?? []).reduce((sum, x) => sum + x.valor, 0);
   const comprometimento = data.renda > 0 ? (data.prestacao / data.renda) * 100 : 0;
   const status: SinalProposta = comprometimento > LIMITE_RENDA ? "vermelho" : data.aporteArea > 0.005 ? "amarelo" : "verde";
   return { custoTotal, comprometimento, status };
@@ -239,6 +239,7 @@ export function PropostaCliente({ data }: { data: PropostaData }) {
   }[status];
   const custos = [
     { rotulo: "Construção da casa", valor: data.custos.construcao, cor: "#10b981" },
+    ...(data.custos.servicos ?? []).map((servico, index) => ({ rotulo: servico.rotulo, valor: servico.valor, cor: ["#14b8a6", "#06b6d4", "#6366f1"][index % 3]! })),
     { rotulo: "Terreno", valor: data.custos.terreno, cor: "#8b5cf6" },
     { rotulo: "Documentos e taxas", valor: data.custos.documentos, cor: "#0ea5e9" },
     { rotulo: "Juros durante a obra", valor: data.custos.juros, cor: "#f59e0b" },

@@ -18,6 +18,7 @@ type ResultadoProposta = {
   saldoRecursos?: number;
   lucroDesejado?: number;
   remuneracaoResponsavel?: number;
+  remuneracaoDetalhe?: { margem: number; administracao: number; projetos: number; honorarios: number };
   quitacaoLote?: number;
   financiamentoConstrucao?: number;
   fgtsNaEntrada?: number;
@@ -48,6 +49,16 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
   const areaMax = r.areaViavelMaxima ?? r.areaViavel;
   const sobra = Math.max(r.saldoRecursos ?? 0, 0);
   const remuneracao = r.remuneracaoResponsavel ?? r.lucroDesejado ?? item.lucro_desejado ?? 0;
+  // Serviços informados à parte aparecem discriminados; a margem (ou valor global) fica na construção.
+  const detalhe = r.remuneracaoDetalhe;
+  const servicos = detalhe
+    ? ([
+        ["Administração do processo", detalhe.administracao],
+        ["Projetos", detalhe.projetos],
+        ["Honorários técnicos", detalhe.honorarios],
+      ] as const).filter(([, valor]) => valor > 0.005).map(([rotulo, valor]) => ({ rotulo, valor }))
+    : [];
+  const totalServicos = servicos.reduce((sum, x) => sum + x.valor, 0);
   const despesas = r.despesas ?? [];
   const despesasConstrutor = despesas.filter((x) => DESPESAS_DO_CONSTRUTOR.has(x.id)).reduce((sum, x) => sum + x.valor, 0);
   const liberacoes = r.liberacoesMensais ?? [];
@@ -59,7 +70,8 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
     renda: item.renda_declarada,
     custos: {
       terreno: item.terreno_valor,
-      construcao: (r.custoConstrucao ?? 0) + r.extrasTotal + remuneracao + despesasConstrutor,
+      construcao: (r.custoConstrucao ?? 0) + r.extrasTotal + remuneracao - totalServicos + despesasConstrutor,
+      servicos,
       documentos: despesas.reduce((sum, x) => sum + x.valor, 0) - despesasConstrutor,
       juros: r.jurosObra ?? 0,
     },

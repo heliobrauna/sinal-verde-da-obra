@@ -6,7 +6,7 @@ export const NUMBER = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 
 export type Extra = { descricao: string; valor: number };
 export type Stage = { nome: string; percentual: number };
 export type MonthlyRelease = { mes: number; percentual: number };
-export type ExpenseCategory = "Despesas iniciais" | "Assinatura do contrato" | "Durante a obra";
+export type ExpenseCategory = "Despesas iniciais" | "Assinatura do contrato" | "Durante a obra" | "Na venda";
 export type ClientExpense = {
   id: string;
   categoria: ExpenseCategory;
@@ -77,7 +77,11 @@ export type SimulationInput = {
   custoAquisicaoLote: number;
   // Na venda, quanto o construtor gostaria de ganhar: só referência para o "preço para o seu lucro".
   lucroConstrutor: number | null;
-  // Preço de venda esperado (mercado). Zero usa custos + lucro informado (simulações antigas).
+  // Remuneração do construtor além da margem (lucro): todas saem da verba da obra, nos dois modos.
+  administracao?: number;
+  projetos?: number;
+  honorarios?: number;
+  // Preço de venda esperado (mercado). Zero usa o preço de equilíbrio (simulações antigas).
   precoVenda?: number;
   // Sem investidor parceiro, o próprio construtor financia e fica com todo o resultado.
   temInvestidor?: boolean;
@@ -149,7 +153,12 @@ export function estimatedExpenses(
   estado = "",
   primeiroImovelSfh = false,
   transferenciaLote = true,
+  venda = false,
 ): ClientExpense[] {
+  // Projetos, administração e honorários são remuneração do construtor (saem da verba da obra), não despesas.
+  void projetos;
+  void administracao;
+  void honorarios;
   const common = { fonte: "Estimativa editável", observacao: "Confirme o valor real antes da contratação." };
   const areaAte100 = Math.min(area, 100);
   const areaAte200 = Math.min(Math.max(area - 100, 0), 100);
@@ -163,8 +172,6 @@ export function estimatedExpenses(
   const registroObservacao = (registro: typeof registroCompra, base: string) =>
     (registro.oficial ? `Tabela oficial da UF por faixa de ${base}; não inclui prenotação e taxas adicionais.` : `Estimativa sobre ${base}; consulte os emolumentos da UF.`) + descontoSfh;
   return [
-    { id: "honorarios-entrada", categoria: "Despesas iniciais", nome: "Honorários — entrada (30%)", valor: honorarios * 0.3, fonte: "Condição informada pelo responsável técnico", observacao: "30% dos honorários desejados." },
-    { id: "projetos", categoria: "Despesas iniciais", nome: "Projetos", valor: projetos, ...common },
     { id: "matricula-inicial", categoria: "Despesas iniciais", nome: "Certidão de matrícula", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
     { id: "art", categoria: "Despesas iniciais", nome: "ART/RRT", valor: 285.59, fonte: "Confea / CREA ou CAU da UF", fonteUrl: "https://www.confea.org.br/profissional/taxas", observacao: "Referência; a tabela anual varia por conselho e UF." },
     { id: "plotagens", categoria: "Despesas iniciais", nome: "Plotagens", valor: 300, ...common },
@@ -177,13 +184,18 @@ export function estimatedExpenses(
     { id: "registro-compra", categoria: "Assinatura do contrato", nome: "Registro de compra e venda", valor: registroCompra.valor, fonte: registroCompra.fonte, fonteUrl: registroCompra.fonteUrl, observacao: registroObservacao(registroCompra, "valor do terreno") },
     { id: "alienacao", categoria: "Assinatura do contrato", nome: "Registro de alienação fiduciária", valor: registroAlienacao.valor, fonte: registroAlienacao.fonte, fonteUrl: registroAlienacao.fonteUrl, observacao: registroObservacao(registroAlienacao, "valor financiado") },
     { id: "matricula-contrato", categoria: "Assinatura do contrato", nome: "Certidão atualizada", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
-    { id: "honorarios-saldo", categoria: "Durante a obra", nome: "Honorários — restante (70%)", valor: honorarios * 0.7, fonte: "Condição informada pelo responsável técnico", observacao: "70% dos honorários desejados." },
-    { id: "administracao", categoria: "Durante a obra", nome: "Administração do processo", valor: administracao, ...common },
-    { id: "acompanhamento", categoria: "Durante a obra", nome: "Acompanhamento de obra", valor: 0, ...common },
     { id: "vistorias", categoria: "Durante a obra", nome: "Vistorias Caixa (2 × R$ 750)", valor: 1500, fonte: "Valor informado para esta estimativa", observacao: "Quantidade e tarifa podem variar conforme o contrato." },
     { id: "inss", categoria: "Durante a obra", nome: "INSS da obra", valor: inssEstimado, fonte: "Receita Federal — Manual do Sero", fonteUrl: "https://www.gov.br/receitafederal/pt-br/assuntos/construcao-civil/sero/manual-do-sero", observacao: "Estimativa preliminar por área e CUB; o valor oficial depende da aferição no CNO/Sero e dos créditos comprovados." },
     { id: "averbacao", categoria: "Durante a obra", nome: "Averbação da construção", valor: credito * 0.003, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Estimativa de 0,3%; consulte os emolumentos da UF." },
     { id: "matricula-final", categoria: "Durante a obra", nome: "Certidão atualizada", valor: 100, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Emolumentos variam por estado." },
+    // Na venda do imóvel pronto, ITBI e registro são do comprador; ao vendedor cabem a baixa da alienação
+    // fiduciária (o financiamento é quitado com o dinheiro da venda) e as certidões. Corretagem e IR são calculados.
+    ...(venda
+      ? [
+          { id: "baixa-alienacao", categoria: "Na venda" as const, nome: "Baixa da alienação fiduciária", valor: 600, fonte: "RI Digital — tabela estadual", fonteUrl: "https://ridigital.org.br/ConsultaTaxas/EmolumentosEstado.aspx", observacao: "Averbação do termo de quitação do financiamento; estimativa, varia por estado." },
+          { id: "certidoes-venda", categoria: "Na venda" as const, nome: "Certidões do vendedor", valor: 300, ...common },
+        ]
+      : []),
   ];
 }
 
@@ -192,8 +204,21 @@ export const LIMITE_LOTE_CONTRATO = 0.3;
 // Parte do lote e da obra que a Caixa financia.
 const PERCENTUAL_FINANCIADO_PARTE = 0.8;
 
-// Imposto de renda sobre ganho de capital de pessoa física (sem fatores de redução).
-const IR_GANHO_CAPITAL = 0.15;
+// IR sobre ganho de capital de pessoa física, por faixas (Lei 13.259/2016): 15% até R$ 5 milhões,
+// 17,5% até R$ 10 milhões, 20% até R$ 30 milhões e 22,5% acima.
+export function irGanhoCapital(ganho: number) {
+  const faixas: [number, number][] = [[5e6, 0.15], [10e6, 0.175], [30e6, 0.2], [Infinity, 0.225]];
+  let imposto = 0;
+  let anterior = 0;
+  for (const [limite, aliquota] of faixas) {
+    if (ganho <= anterior) break;
+    imposto += (Math.min(ganho, limite) - anterior) * aliquota;
+    anterior = limite;
+  }
+  return imposto;
+}
+// Fator de redução FR2 (Lei 11.196/2005, art. 40): 1 / 1,0035 elevado aos meses entre a aquisição e a venda.
+export const fatorReducaoFr2 = (meses: number) => 1 / Math.pow(1.0035, Math.max(meses, 0));
 export type SistemaAmortizacao = "PRICE" | "SAC";
 
 // Parcelas da fase de amortização, sem TR (como o simulador da Caixa, que a deixa de fora por ser variável):
@@ -297,8 +322,15 @@ function calcular(input: SimulationInput) {
   // A verba da obra paga construção, extras e despesas durante a obra. Despesas antes do contrato,
   // da assinatura e os juros mensais de obra saem do bolso do cliente.
   const custoM2 = input.maoDeObra + input.materiais;
-  // Para morar, a remuneração do responsável sai da verba da obra; na venda, o lucro vem do preço.
-  const reservaLucro = input.objetivo === "morar" ? Math.max(input.lucro, 0) : 0;
+  // Remuneração do construtor (margem + administração + projetos + honorários) sai da verba da obra nos dois
+  // modos: o imóvel é o mesmo e a área viável também, seja para morar, seja para vender.
+  const remuneracaoDetalhe = {
+    margem: Math.max(input.lucro, 0),
+    administracao: Math.max(input.administracao ?? 0, 0),
+    projetos: Math.max(input.projetos ?? 0, 0),
+    honorarios: Math.max(input.honorarios ?? 0, 0),
+  };
+  const reservaLucro = remuneracaoDetalhe.margem + remuneracaoDetalhe.administracao + remuneracaoDetalhe.projetos + remuneracaoDetalhe.honorarios;
   const disponivel = Math.max(0, recursosUtilizaveis - extrasTotal - despesasObra - reservaLucro);
   const areaViavelMaxima = custoM2 > 0 ? disponivel / custoM2 : 0;
   const areaViavelMinima = custoM2 > 0 ? disponivel / (custoM2 * 1.18) : 0;
@@ -308,6 +340,8 @@ function calcular(input: SimulationInput) {
   const custoObra = custoConstrucao + extrasTotal + despesasObra;
   const custoTotal = custoConstrucao + extrasTotal + despesasTotal + jurosObra;
   const custoComTerreno = custoTotal + input.terreno;
+  // Custo do imóvel com a remuneração do construtor: é o que o cliente (ou o investidor) paga no total.
+  const custoImovel = custoComTerreno + reservaLucro;
   // Positivo: sobra na verba da obra; negativo: aporte necessário para a área planejada.
   const saldoRecursos = recursosUtilizaveis - custoObra - reservaLucro;
   const aporteParaAreaPlanejada = Math.max(-saldoRecursos, 0);
@@ -323,7 +357,6 @@ function calcular(input: SimulationInput) {
   const vender = input.objetivo === "vender";
   const taxaCorretagem = vender ? Math.min(Math.max(input.corretagem, 0), 99.99) / 100 : 0;
   const precoInformado = vender && (input.precoVenda ?? 0) > 0;
-  const valorVenda = vender ? (precoInformado ? input.precoVenda ?? 0 : (custoComTerreno + input.lucro) / (1 - taxaCorretagem)) : recursosUtilizaveis;
   const mesesAposObra = Math.max(0, Math.floor(input.prazo));
   // Após a obra a dívida inteira (lote + obra) entra em amortização; a TR só é considerada na fase de obra.
   const sistemaAmortizacao: SistemaAmortizacao = input.sistemaAmortizacao === "SAC" ? "SAC" : "PRICE";
@@ -336,12 +369,11 @@ function calcular(input: SimulationInput) {
   // Investidor: quem financia no próprio nome. Cada aporte tem um mês (0 = assinatura).
   const mesesObra = input.liberacoes.length;
   const mesVenda = mesesObra + mesesAposObra;
-  // Lote próprio: vale o que o investidor receberia vendendo-o hoje (menos corretagem e IR sobre o ganho).
+  // Lote próprio entra como capital pelo valor informado; a valorização dele paga IR na venda da casa pronta.
   const loteProprio = input.origemTerreno === "investidor" && agioLote > 0;
-  const corretagemLoteValor = loteProprio ? input.terreno * Math.min(Math.max(input.corretagemLote, 0), 100) / 100 : 0;
-  const ganhoCapitalLote = loteProprio && input.custoAquisicaoLote > 0 ? Math.max(input.terreno - corretagemLoteValor - input.custoAquisicaoLote, 0) : 0;
-  const irGanhoLote = ganhoCapitalLote * IR_GANHO_CAPITAL;
-  const patrimonioTerreno = loteProprio ? Math.max(agioLote - corretagemLoteValor - irGanhoLote, 0) : 0;
+  const corretagemLoteValor = 0;
+  const irGanhoLote = 0;
+  const patrimonioTerreno = loteProprio ? agioLote : 0;
   // O banco e o FGTS só liberam após cada medição (Manual FGTS Moradia Própria, 8.5.2): para começar a obra
   // é preciso caixa de 10% da construção. Para morar, a entrada em dinheiro que sobra depois de completar o
   // lote já é esse caixa. Na venda, a entrada é só comprovação de recursos, a menos que a agência exija o depósito.
@@ -351,8 +383,9 @@ function calcular(input: SimulationInput) {
   const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - entradaComoCaixa, 0);
   // Venda: o que a obra real custa além do que o banco libera para ela sai do investidor, mês a mês, na
   // proporção das medições; se o banco libera mais do que a obra custa, a folga fica em caixa até a venda.
-  const obraAlemFinanciamento = vender ? Math.max(custoObra - financiamentoConstrucao, 0) : 0;
-  const folgaFinanciamento = vender ? Math.max(financiamentoConstrucao - custoObra, 0) : 0;
+  // A remuneração do construtor é paga com a verba da obra, como a construção.
+  const obraAlemFinanciamento = vender ? Math.max(custoObra + reservaLucro - financiamentoConstrucao, 0) : 0;
+  const folgaFinanciamento = vender ? Math.max(financiamentoConstrucao - custoObra - reservaLucro, 0) : 0;
   const entradaAplicada = entradaDepositada ? Math.min(dinheiroEntradaNaObra, obraAlemFinanciamento) : 0;
   const obraAlemNovoDinheiro = obraAlemFinanciamento - entradaAplicada;
   // Dinheiro em mãos até a primeira medição.
@@ -361,7 +394,7 @@ function calcular(input: SimulationInput) {
     : desembolsoAntesContrato + desembolsoAssinatura + capitalGiro;
   const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
   const aportesInvestidor: InvestorFlow[] = [
-    { mes: 0, rotulo: "Terreno (valor líquido se vendido)", valor: patrimonioTerreno, patrimonio: true },
+    { mes: 0, rotulo: "Terreno", valor: patrimonioTerreno, patrimonio: true },
     { mes: 0, rotulo: "Despesas antes da obra e na assinatura", valor: despesasPreContrato + despesasAssinatura },
     { mes: 0, rotulo: "Terreno: parte que o banco não paga", valor: saldoLoteNaoCoberto },
     { mes: 0, rotulo: "Entrada depositada aplicada na obra", valor: entradaAplicada },
@@ -396,30 +429,58 @@ function calcular(input: SimulationInput) {
   );
   const recebimentoConstrutorLote = input.origemTerreno === "construtor" ? input.terreno : 0;
   const participacaoInvestidor = temInvestidor ? Math.min(100, Math.max(0, input.participacaoInvestidor)) : 0;
-  // Na venda, o banco recebe o saldo devedor e a folga do financiamento volta ao caixa. O que sobra
-  // depois de devolver o capital é o lucro da operação, dividido em cascata.
+  // Na venda, o banco recebe o saldo devedor e a folga do financiamento volta ao caixa. O vendedor paga
+  // corretagem, IR sobre o ganho de capital e as despesas da venda; ITBI e registro são do comprador.
   const dividaNaVenda = Math.max(saldoLiberado - amortizacaoEstimada, 0);
-  const caixaSemVenda = folgaFinanciamento - dividaNaVenda - capitalDevolvidoVenda;
-  const lucroNaVenda = (venda: number) => venda * (1 - taxaCorretagem) + caixaSemVenda;
-  const precoPara = (lucro: number) => (lucro - caixaSemVenda) / (1 - taxaCorretagem);
-  // Referências: preço que só devolve o capital, preço que paga o retorno mínimo do investidor e preço
-  // para o construtor receber o lucro que deseja depois da parte do investidor.
+  const despesasVenda = soma(input.despesas.filter((item) => item.categoria === "Na venda"));
+  // Custo de aquisição para o IR (IN SRF 84/2001, art. 17): lote (preço pago), ITBI e registro, construção com
+  // projeto aprovado (inclui a remuneração do construtor), demais despesas comprovadas e juros pagos.
+  const relacionamento = input.despesas.filter((item) => item.id === "relacionamento").reduce((sum, item) => sum + item.valor, 0);
+  const baseLote = input.origemTerreno === "investidor" && input.custoAquisicaoLote > 0 ? input.custoAquisicaoLote : input.terreno;
+  const custoAquisicaoItens = [
+    { mes: 0, valor: baseLote + despesasPreContrato + despesasAssinatura - relacionamento },
+    ...input.liberacoes.map((item) => ({ mes: item.mes, valor: (custoObra + reservaLucro) * item.percentual / 100 })),
+    ...liberacoesMensais.map((item) => ({ mes: item.mes, valor: item.encargo })),
+    ...ateVenda.map((item, index) => ({ mes: mesesObra + index + 1, valor: item.juros + seguroTarifaMensal })),
+  ];
+  const custoAquisicaoIr = custoAquisicaoItens.reduce((sum, item) => sum + item.valor, 0);
+  // Fator de redução ponderado pelo mês de cada gasto (o lote conta desde a assinatura: estimativa conservadora).
+  const fatorReducao = custoAquisicaoIr > 0
+    ? custoAquisicaoItens.reduce((sum, item) => sum + item.valor * fatorReducaoFr2(mesVenda - item.mes), 0) / custoAquisicaoIr
+    : 1;
+  const ganhoCapital = (venda: number) => Math.max(venda * (1 - taxaCorretagem) - custoAquisicaoIr, 0);
+  const irNaVenda = (venda: number) => (vender ? irGanhoCapital(ganhoCapital(venda) * fatorReducao) : 0);
+  const caixaSemVenda = folgaFinanciamento - dividaNaVenda - capitalDevolvidoVenda - despesasVenda;
+  const lucroNaVenda = (venda: number) => venda * (1 - taxaCorretagem) - irNaVenda(venda) + caixaSemVenda;
+  // O lucro cresce com o preço (o IR leva no máximo 22,5% do ganho): acha o preço por bisseção.
+  const precoPara = (lucro: number) => {
+    let baixo = 0;
+    let alto = Math.max(1, (lucro - caixaSemVenda) / Math.max(1 - taxaCorretagem, 0.01) * 2 + 1);
+    for (let i = 0; i < 100; i++) {
+      const meio = (baixo + alto) / 2;
+      if (lucroNaVenda(meio) < lucro) baixo = meio;
+      else alto = meio;
+    }
+    return alto;
+  };
+  // Referências: preço que só devolve o capital e preço que paga também o retorno mínimo do investidor.
   const precoEquilibrio = vender ? precoPara(0) : 0;
   const precoMinimo = vender ? precoPara(retornoPreferencial) : 0;
-  const lucroAlvoConstrutor = vender ? Math.max(input.lucroConstrutor ?? 0, 0) : 0;
-  const precoParaLucroConstrutor = lucroAlvoConstrutor > 0 && participacaoInvestidor < 100
-    ? precoPara(retornoPreferencial + lucroAlvoConstrutor / (1 - participacaoInvestidor / 100))
-    : null;
+  const valorVenda = vender ? (precoInformado ? input.precoVenda ?? 0 : precoEquilibrio) : recursosUtilizaveis;
+  const lucroAlvoConstrutor = 0;
+  const precoParaLucroConstrutor = null as number | null;
   const cenarios = [0, -QUEDA_PRECO_CENARIO].map((ajuste) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
+    const ir = irNaVenda(venda);
     const saldo = lucroNaVenda(venda);
     // Cascata: 1) devolve o capital; 2) paga o retorno preferencial; 3) divide o excedente.
     const preferencialPago = Math.min(Math.max(saldo, 0), retornoPreferencial);
     const excedente = Math.max(saldo - retornoPreferencial, 0);
     const excedenteInvestidor = excedente * participacaoInvestidor / 100;
-    const lucroInvestidor = saldo < 0 ? saldo : preferencialPago + excedenteInvestidor;
-    const lucroConstrutor = excedente - excedenteInvestidor;
+    // Sem parceiro, o construtor é quem financia: o resultado, positivo ou negativo, é todo dele.
+    const lucroInvestidor = !temInvestidor ? 0 : saldo < 0 ? saldo : preferencialPago + excedenteInvestidor;
+    const lucroConstrutor = !temInvestidor ? saldo : excedente - excedenteInvestidor;
     const fluxos = [
       ...aportesInvestidor.map((flow) => ({ mes: flow.mes, valor: -flow.valor })),
       ...aportesInvestidor.filter((flow) => flow.retornoMes !== undefined).map((flow) => ({ mes: flow.retornoMes ?? 0, valor: flow.valor })),
@@ -429,12 +490,14 @@ function calcular(input: SimulationInput) {
     const rentabilidade = tirMensal === null ? null : (Math.pow(1 + tirMensal, 12) - 1) * 100;
     return {
       nome: ajuste === 0 ? "Venda como esperado" : `Venda ${Math.round(QUEDA_PRECO_CENARIO * 100)}% abaixo`, ajuste, atraso: 0,
-      venda, corretagem, saldo, preferencialPago, excedente, lucroInvestidor, lucroConstrutor, mesVenda,
+      venda, corretagem, ir, saldo, preferencialPago, excedente, lucroInvestidor, lucroConstrutor, mesVenda,
+      // Ganho total do construtor: remuneração (paga durante a obra) + parte no lucro da venda.
+      ganhoConstrutor: reservaLucro + lucroConstrutor,
       rentabilidadeInvestidor: rentabilidade,
       superaSelic: rentabilidade === null ? null : rentabilidade >= selicLiquida,
     };
   });
-  const lucroOperacao = vender ? lucroNaVenda(valorVenda) : input.lucro;
+  const lucroOperacao = vender ? lucroNaVenda(valorVenda) : reservaLucro;
   return {
     areaViavel, areaViavelMinima, areaViavelMaxima, areaPlanejada, aporteParaAreaPlanejada, custoM2,
     maoDeObra: input.maoDeObra, materiais: input.materiais,
@@ -442,14 +505,15 @@ function calcular(input: SimulationInput) {
     extrasTotal, despesasTotal, despesasPreContrato, despesasAssinatura, despesasObra, despesas: input.despesas,
     saldoRecursos, disponivel, custoObra, custoConstrucao, custoTotal, custoComTerreno, jurosObra,
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
-    lucroDesejado: lucroOperacao, mesesAposObra, precoInformado,
+    lucroDesejado: lucroOperacao, mesesAposObra, precoInformado, custoImovel, remuneracaoDetalhe,
+    despesasVenda, custoAquisicaoIr, fatorReducao, irVenda: vender ? irNaVenda(valorVenda) : 0, ganhoCapitalVenda: vender ? ganhoCapital(valorVenda) : 0,
     precoEquilibrio, precoMinimo, precoParaLucroConstrutor, lucroAlvoConstrutor, temInvestidor, entradaDepositada,
     obraAlemFinanciamento, folgaFinanciamento, entradaAplicada, dividaNaVenda, capitalMaximo, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
     capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
     origemTerreno: input.origemTerreno, selicAnual, aliquotaIr, selicLiquida, premioInvestidor: input.premioInvestidor,
     taxaPreferencial, retornoPreferencial, mesVenda, recebimentoConstrutorLote,
-    corretagemLoteValor, ganhoCapitalLote, irGanhoLote,
+    corretagemLoteValor, ganhoCapitalLote: 0, irGanhoLote,
     lucroConstrutorDesejado: lucroAlvoConstrutor > 0 ? lucroAlvoConstrutor : null,
     construtorSemExcedente: vender && temInvestidor && participacaoInvestidor >= 100,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
@@ -463,4 +527,27 @@ function calcular(input: SimulationInput) {
     prazoExecucaoMeses: input.liberacoes.length, liberacoesMensais,
     cronograma: input.stages.map((stage) => ({ ...stage, valor: financiamentoConstrucao * stage.percentual / 100 })),
   };
+}
+
+// Semáforo do resumo em tempo real. Morar: prestação até 30% da renda e área dentro da verba.
+// Vender: rendimento de quem financia acima da Selic líquida, inclusive vendendo 10% abaixo ou 6 meses depois.
+export type SinalStatus = "verde" | "amarelo" | "vermelho" | "neutro";
+type CenarioSinal = { saldo: number; rentabilidadeInvestidor: number | null };
+export function sinalDaSimulacao(
+  r: { custoM2: number; prestacaoInicial: number; aporteParaAreaPlanejada: number; precoInformado: boolean; selicLiquida: number; cenarios: CenarioSinal[] },
+  objetivo: "morar" | "vender",
+  renda: number,
+): { status: SinalStatus; texto: string } {
+  if (r.custoM2 <= 0) return { status: "neutro", texto: "Informe os custos da obra" };
+  if (objetivo === "morar") {
+    if (renda > 0 && (r.prestacaoInicial / renda) * 100 > 30) return { status: "vermelho", texto: "Prestação acima de 30% da renda" };
+    if (r.aporteParaAreaPlanejada > 0.005) return { status: "amarelo", texto: "A área planejada pede dinheiro extra" };
+    return { status: "verde", texto: "Cabe na verba e na renda" };
+  }
+  if (!r.precoInformado) return { status: "neutro", texto: "Informe o preço de venda" };
+  const ruim = (c: CenarioSinal) => c.saldo < 0 || c.rentabilidadeInvestidor === null || c.rentabilidadeInvestidor < r.selicLiquida;
+  const [esperado, ...outros] = r.cenarios;
+  if (!esperado || ruim(esperado)) return { status: "vermelho", texto: "Rende menos que a Selic líquida" };
+  if (outros.some(ruim)) return { status: "amarelo", texto: "Abaixo da Selic se a venda atrasar ou cair" };
+  return { status: "verde", texto: "Rende acima da Selic, mesmo com imprevistos" };
 }

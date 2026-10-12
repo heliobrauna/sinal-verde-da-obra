@@ -6,6 +6,8 @@ import type { Tables } from "@/integrations/supabase/types";
 type Cenario = {
   nome: string;
   venda: number;
+  corretagem?: number;
+  ir?: number;
   saldo: number;
   lucroInvestidor: number;
   rentabilidadeInvestidor: number | null;
@@ -39,6 +41,9 @@ type ResultadoVenda = {
   origemTerreno?: string;
   capitalDevolvidoVenda?: number;
   entradaDepositada?: boolean;
+  dividaNaVenda?: number;
+  folgaFinanciamento?: number;
+  despesasVenda?: number;
   cenarios?: Cenario[];
 };
 
@@ -68,6 +73,8 @@ export type RelatorioInvestidorData = {
   folgaPrejuizo: number;
   parcelaAtraso: number;
   entradaDepositada: boolean;
+  // Para onde vai o dinheiro da venda esperada.
+  venda: { corretagem: number; ir: number; despesas: number; banco: number; capital: number; lucro: number; construtor: number };
   cenarios: { nome: string; lucro: number; rentabilidade: number | null; mesVenda: number }[];
   status: SinalInvestidor;
 };
@@ -114,6 +121,15 @@ export function montarRelatorioInvestidor(item: Tables<"simulacoes">): Relatorio
     folgaPrejuizo: r.precoEquilibrio ? Math.max(1 - r.precoEquilibrio / r.valorVenda, 0) * 100 : 0,
     parcelaAtraso: r.prestacaoInicial ?? 0,
     entradaDepositada: r.entradaDepositada === true,
+    venda: {
+      corretagem: esperado.corretagem ?? 0,
+      ir: esperado.ir ?? 0,
+      despesas: r.despesasVenda ?? 0,
+      banco: Math.max((r.dividaNaVenda ?? 0) - (r.folgaFinanciamento ?? 0), 0),
+      capital: capitalDevolvidoVenda,
+      lucro: esperado.lucroInvestidor,
+      construtor: Math.max(esperado.saldo - esperado.lucroInvestidor, 0),
+    },
     cenarios: r.cenarios.map((c) => ({ nome: c.nome, lucro: c.lucroInvestidor, rentabilidade: c.rentabilidadeInvestidor, mesVenda: c.mesVenda ?? r.mesVenda ?? 0 })),
     status,
   };
