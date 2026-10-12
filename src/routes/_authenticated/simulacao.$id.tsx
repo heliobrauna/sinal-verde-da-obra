@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app/AppShell";
 import { PropostaCliente } from "@/components/app/PropostaCliente";
 import { DESPESAS_DO_CONSTRUTOR, montarProposta } from "@/lib/proposta";
+import { montarRelatorioInvestidor } from "@/lib/relatorio-investidor";
+import { RelatorioInvestidor } from "@/components/app/RelatorioInvestidor";
 import { gerarLinkProposta } from "@/lib/proposta.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -115,7 +117,8 @@ const hasValue = (value: number | undefined): value is number => value !== undef
 const m2 = (value: number) => `${NUMBER.format(value)} m²`;
 
 export const Route = createFileRoute("/_authenticated/simulacao/$id")({
-  validateSearch: (search: Record<string, unknown>): { visao?: "cliente" } => (search["visao"] === "cliente" ? { visao: "cliente" } : {}),
+  validateSearch: (search: Record<string, unknown>): { visao?: "cliente" | "investidor" } =>
+    search["visao"] === "cliente" ? { visao: "cliente" } : search["visao"] === "investidor" ? { visao: "investidor" } : {},
   head: () => ({
     meta: [
       { title: "Resultado | Sinal Verde da Obra" },
@@ -157,7 +160,7 @@ function Rows({ title, rows, total }: { title: string; rows: Row[]; total?: Row 
 // entram em "Construção da casa" junto com a remuneração, sem revelar a margem.
 
 // Link público da proposta (30 dias) para enviar ao cliente pelo WhatsApp, sem que ele precise de login.
-function LinkParaCliente({ id, nome }: { id: string; nome: string }) {
+function LinkParaCliente({ id, nome, investidor = false }: { id: string; nome: string; investidor?: boolean }) {
   const gerar = useServerFn(gerarLinkProposta);
   const [link, setLink] = useState<{ url: string; validade: string } | null>(null);
   const [aviso, setAviso] = useState("");
@@ -172,12 +175,12 @@ function LinkParaCliente({ id, nome }: { id: string; nome: string }) {
       setAviso("Não foi possível gerar o link. Tente de novo.");
     }
   }
-  const mensagem = link ? `Olá! Segue a proposta da sua casa (${nome}): ${link.url}` : "";
+  const mensagem = link ? (investidor ? `Olá! Segue a proposta de investimento na obra ${nome}: ${link.url}` : `Olá! Segue a proposta da sua casa (${nome}): ${link.url}`) : "";
   return (
     <section className="mb-5 rounded-lg border p-4 print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-semibold">Enviar ao cliente</p>
+          <p className="font-semibold">{investidor ? "Enviar ao investidor" : "Enviar ao cliente"}</p>
           <p className="text-sm text-muted-foreground">Link válido por 30 dias, sem login. Mostra só esta proposta.</p>
         </div>
         <Button type="button" variant={link ? "outline" : "default"} onClick={criar}>
@@ -287,6 +290,10 @@ function Result() {
   // A proposta usa só simulações salvas com o cálculo atual; as antigas precisam ser abertas e salvas de novo.
   const dadosProposta = montarProposta(item);
   const verCliente = !vender && visao === "cliente";
+  const dadosInvestidor = vender ? montarRelatorioInvestidor(item) : null;
+  const verInvestidor = vender && visao === "investidor";
+  const verRelatorio = verCliente || verInvestidor;
+  const abaRelatorio = vender ? { visao: "investidor" as const, rotulo: "Relatório do investidor" } : { visao: "cliente" as const, rotulo: "Proposta ao cliente" };
 
   return (
     <AppShell>
@@ -323,13 +330,18 @@ function Result() {
           </AlertDialogContent>
         </AlertDialog></div>
       </div>
-      {!vender && (
+      {(!vender || investidor) && (
         <div className="mt-5 inline-flex rounded-lg border p-1 print:hidden" role="tablist" aria-label="Visão do resultado">
-          <Link to="/simulacao/$id" params={{ id }} search={{}} role="tab" aria-selected={!verCliente} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${verCliente ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "bg-primary text-primary-foreground"}`}>Visão do construtor</Link>
-          <Link to="/simulacao/$id" params={{ id }} search={{ visao: "cliente" }} role="tab" aria-selected={verCliente} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${verCliente ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>Proposta ao cliente</Link>
+          <Link to="/simulacao/$id" params={{ id }} search={{}} role="tab" aria-selected={!verRelatorio} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${verRelatorio ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "bg-primary text-primary-foreground"}`}>Visão do construtor</Link>
+          <Link to="/simulacao/$id" params={{ id }} search={{ visao: abaRelatorio.visao }} role="tab" aria-selected={verRelatorio} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${verRelatorio ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>{abaRelatorio.rotulo}</Link>
         </div>
       )}
-      {verCliente ? (
+      {verInvestidor ? (
+        <div className="mt-6">
+          {dadosInvestidor && <LinkParaCliente id={id} nome={item.nome} investidor />}
+          {dadosInvestidor ? <RelatorioInvestidor data={dadosInvestidor} /> : <p className="rounded-lg border p-5 text-sm text-muted-foreground">Esta simulação foi salva com uma versão anterior do cálculo. Abra em <strong>Editar</strong>, informe o preço de venda esperado e salve de novo para gerar o relatório do investidor.</p>}
+        </div>
+      ) : verCliente ? (
         <div className="mt-6">
           {dadosProposta && <LinkParaCliente id={id} nome={item.nome} />}
           {dadosProposta ? <PropostaCliente data={dadosProposta} /> : <p className="rounded-lg border p-5 text-sm text-muted-foreground">Esta simulação foi salva com uma versão anterior do cálculo. Abra em <strong>Editar</strong> e salve de novo para gerar a proposta ao cliente.</p>}

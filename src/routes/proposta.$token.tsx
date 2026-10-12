@@ -1,21 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MessageCircle } from "lucide-react";
 import { PropostaCliente } from "@/components/app/PropostaCliente";
+import { RelatorioInvestidor } from "@/components/app/RelatorioInvestidor";
 import { lerPropostaPublica } from "@/lib/proposta.functions";
 
 // Página aberta pelo cliente a partir do link enviado pelo construtor: sem login, só a proposta.
 export const Route = createFileRoute("/proposta/$token")({
-  head: () => ({
-    meta: [
-      { title: "Proposta da sua casa | Sinal Verde da Obra" },
-      { name: "description", content: "Quanto custa, quem paga cada parte e a prestação da sua casa." },
-      { property: "og:title", content: "Proposta da sua casa" },
-      { property: "og:description", content: "Quanto custa, quem paga cada parte e a prestação da sua casa." },
-      { property: "og:type", content: "website" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
   loader: ({ params }) => lerPropostaPublica({ data: { token: params.token } }),
+  // Link pelo WhatsApp: o título muda conforme seja proposta da casa (morar) ou de investimento (vender).
+  head: ({ loaderData }) => {
+    const investimento = loaderData?.status === "ok" && Boolean(loaderData.relatorio);
+    const titulo = investimento ? "Proposta de investimento" : "Proposta da sua casa";
+    const descricao = investimento ? "Quanto você coloca, quando volta e quanto rende." : "Quanto custa, quem paga cada parte e a prestação da sua casa.";
+    return {
+      meta: [
+        { title: `${titulo} | Sinal Verde da Obra` },
+        { name: "description", content: descricao },
+        { property: "og:title", content: titulo },
+        { property: "og:description", content: descricao },
+        { property: "og:type", content: "website" },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
   component: PropostaPublica,
 });
 
@@ -44,7 +51,10 @@ function PropostaPublica() {
   const validade = new Date(resultado.expiraEm).toLocaleDateString("pt-BR");
   const { construtor } = resultado;
   const whatsapp = numeroWhatsApp(construtor.telefone);
-  const mensagem = `Olá${construtor.nome ? `, ${construtor.nome.split(" ")[0]}` : ""}! Vi a proposta "${resultado.proposta.nome}" e quero seguir com ela.`;
+  const nomeProposta = resultado.proposta?.nome ?? resultado.relatorio?.nome ?? "";
+  const mensagem = resultado.relatorio
+    ? `Olá${construtor.nome ? `, ${construtor.nome.split(" ")[0]}` : ""}! Vi a proposta de investimento "${nomeProposta}" e quero participar.`
+    : `Olá${construtor.nome ? `, ${construtor.nome.split(" ")[0]}` : ""}! Vi a proposta "${nomeProposta}" e quero seguir com ela.`;
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-6 md:py-10 print:bg-white print:p-0">
       <div className="mx-auto mb-4 flex max-w-4xl flex-wrap items-center justify-between gap-3 print:hidden">
@@ -55,11 +65,11 @@ function PropostaPublica() {
         {whatsapp && (
           <a href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(mensagem)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
             <MessageCircle className="size-4" />
-            Quero seguir com essa proposta
+            {resultado.relatorio ? "Quero participar" : "Quero seguir com essa proposta"}
           </a>
         )}
       </div>
-      <PropostaCliente data={resultado.proposta} />
+      {resultado.relatorio ? <RelatorioInvestidor data={resultado.relatorio} /> : resultado.proposta ? <PropostaCliente data={resultado.proposta} /> : null}
       {whatsapp && (
         <p className="mx-auto mt-4 max-w-4xl text-center text-sm text-zinc-600 print:hidden">
           Ficou com dúvida?{" "}

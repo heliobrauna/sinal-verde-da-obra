@@ -191,7 +191,8 @@ describe("projeção financeira", () => {
     const alem = result.aportesInvestidor.filter((f) => f.rotulo === "Obra além do financiamento");
     expect(alem.reduce((sum, f) => sum + f.valor, 0)).toBeCloseTo(result.obraAlemFinanciamento);
     expect(result.capitalMaximo).toBeGreaterThan(result.dinheiroParaComecar);
-    expect(result.capitalMaximo).toBeLessThanOrEqual(result.capitalAportadoInvestidor);
+    // O lote próprio é capital, mas não é dinheiro a separar: fica fora do máximo necessário.
+    expect(result.capitalMaximo).toBeLessThanOrEqual(result.capitalAportadoInvestidor - result.patrimonioTerreno + 1e-6);
   });
 
   it("mostra o efeito de vender 10% abaixo e 6 meses depois", () => {

@@ -29,7 +29,7 @@ export type PropostaData = {
 };
 
 const LIMITE_RENDA = 30;
-const printExact: CSSProperties = { WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" };
+export const printExact: CSSProperties = { WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" };
 const m2 = (value: number) => `${NUMBER.format(value)} m²`;
 const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%`;
 
@@ -40,7 +40,7 @@ const FONTES = [
   { key: "bolso", rotulo: "Do seu bolso", cor: "#f59e0b" },
 ] as const;
 
-function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+export function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <section className="@container break-inside-avoid rounded-2xl border border-zinc-200 p-5">
       <h2 className="text-base font-bold text-zinc-900">{titulo}</h2>
@@ -148,7 +148,7 @@ function ReguaArea({ areaMin, areaMax, areaPlanejada }: Pick<PropostaData, "area
   );
 }
 
-function Semaforo({ status, titulo, texto }: { status: "verde" | "amarelo" | "vermelho"; titulo: string; texto: string }) {
+export function Semaforo({ status, titulo, texto }: { status: "verde" | "amarelo" | "vermelho"; titulo: string; texto: string }) {
   const luzes = [
     { key: "vermelho", cor: "#ef4444" },
     { key: "amarelo", cor: "#f59e0b" },

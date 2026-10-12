@@ -17,7 +17,8 @@ export type ClientExpense = {
   observacao: string;
 };
 export type OrigemTerreno = "investidor" | "construtor" | "compra";
-type InvestorFlow = { mes: number; rotulo: string; valor: number; retornoMes?: number };
+// patrimonio: bem que já é do investidor (o lote), conta como capital mas não é dinheiro a separar.
+type InvestorFlow = { mes: number; rotulo: string; valor: number; retornoMes?: number; patrimonio?: boolean };
 
 // Alíquota regressiva de IR da renda fixa (Tesouro Selic) pelo prazo em meses.
 export function irAliquota(meses: number) {
@@ -360,7 +361,7 @@ function calcular(input: SimulationInput) {
     : desembolsoAntesContrato + desembolsoAssinatura + capitalGiro;
   const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
   const aportesInvestidor: InvestorFlow[] = [
-    { mes: 0, rotulo: "Terreno (valor líquido se vendido)", valor: patrimonioTerreno },
+    { mes: 0, rotulo: "Terreno (valor líquido se vendido)", valor: patrimonioTerreno, patrimonio: true },
     { mes: 0, rotulo: "Despesas antes da obra e na assinatura", valor: despesasPreContrato + despesasAssinatura },
     { mes: 0, rotulo: "Terreno: parte que o banco não paga", valor: saldoLoteNaoCoberto },
     { mes: 0, rotulo: "Entrada depositada aplicada na obra", valor: entradaAplicada },
@@ -373,13 +374,15 @@ function calcular(input: SimulationInput) {
   const capitalAportadoInvestidor = aportesInvestidor.reduce((sum, flow) => sum + flow.valor, 0);
   // Capital que volta só na venda (o caixa inicial e a entrada não usada retornam ao fim da obra).
   const capitalDevolvidoVenda = aportesInvestidor.filter((flow) => flow.retornoMes === undefined).reduce((sum, flow) => sum + flow.valor, 0);
-  // Maior volume de dinheiro do investidor aplicado ao mesmo tempo: é quanto ele precisa ter disponível.
+  // Maior volume de dinheiro do investidor aplicado ao mesmo tempo: é quanto ele precisa ter disponível
+  // (o lote próprio fica de fora: já é dele e não precisa ser separado em dinheiro).
+  const fluxosDinheiro = aportesInvestidor.filter((flow) => !flow.patrimonio);
   let acumulado = 0;
   let capitalMaximo = 0;
   for (let mes = 0; mes <= mesVenda; mes++) {
-    acumulado += aportesInvestidor.filter((flow) => flow.mes === mes).reduce((sum, flow) => sum + flow.valor, 0);
+    acumulado += fluxosDinheiro.filter((flow) => flow.mes === mes).reduce((sum, flow) => sum + flow.valor, 0);
     capitalMaximo = Math.max(capitalMaximo, acumulado);
-    acumulado -= aportesInvestidor.filter((flow) => flow.retornoMes === mes).reduce((sum, flow) => sum + flow.valor, 0);
+    acumulado -= fluxosDinheiro.filter((flow) => flow.retornoMes === mes).reduce((sum, flow) => sum + flow.valor, 0);
   }
   const temInvestidor = vender && input.temInvestidor !== false;
   const selicAnual = Math.max(input.selicAnual, 0);

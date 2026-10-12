@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { montarProposta } from "@/lib/proposta";
+import { montarRelatorioInvestidor } from "@/lib/relatorio-investidor";
 import { criarToken, validarToken } from "@/lib/proposta-token";
 
 // O link público é assinado com a chave de serviço do servidor. O banco continua fechado por RLS:
@@ -17,9 +18,11 @@ export const gerarLinkProposta = createServerFn({ method: "POST" })
   .validator((data) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     // A leitura com o token do usuário respeita o RLS: só o dono (ou admin) gera o link.
-    const { data: simulacao, error } = await context.supabase.from("simulacoes").select("id, objetivo").eq("id", data.id).single();
+    const { data: simulacao, error } = await context.supabase.from("simulacoes").select("*").eq("id", data.id).single();
     if (error || !simulacao) throw new Error("Simulação não encontrada");
-    if (simulacao.objetivo === "vender") throw new Error("A proposta ao cliente existe só para construir para morar");
+    // Morar gera a proposta ao cliente; vender, o relatório do investidor (só com parceiro e cálculo atual).
+    const disponivel = simulacao.objetivo === "vender" ? montarRelatorioInvestidor(simulacao) : montarProposta(simulacao);
+    if (!disponivel) throw new Error("Abra e salve a simulação de novo para gerar o link");
     return criarToken(simulacao.id, segredo());
   });
 
@@ -30,8 +33,10 @@ export const lerPropostaPublica = createServerFn({ method: "GET" })
     if (validacao.status !== "ok") return { status: validacao.status };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: simulacao } = await supabaseAdmin.from("simulacoes").select("*").eq("id", validacao.id).maybeSingle();
-    const proposta = simulacao ? montarProposta(simulacao) : null;
-    if (!simulacao || !proposta) return { status: "indisponivel" as const };
+    if (!simulacao) return { status: "indisponivel" as const };
+    const proposta = simulacao.objetivo === "vender" ? null : montarProposta(simulacao);
+    const relatorio = simulacao.objetivo === "vender" ? montarRelatorioInvestidor(simulacao) : null;
+    if (!proposta && !relatorio) return { status: "indisponivel" as const };
     const [{ data: perfil }, { data: conta }] = await Promise.all([
       supabaseAdmin.from("profiles").select("nome").eq("id", simulacao.user_id).maybeSingle(),
       supabaseAdmin.auth.admin.getUserById(simulacao.user_id),
@@ -41,6 +46,7 @@ export const lerPropostaPublica = createServerFn({ method: "GET" })
     return {
       status: "ok" as const,
       proposta,
+      relatorio,
       construtor: { nome: perfil?.nome ?? "", telefone: String(meta["telefone"] ?? ""), registro: String(meta["registro"] ?? "") },
       expiraEm: validacao.expiraEm,
     };
