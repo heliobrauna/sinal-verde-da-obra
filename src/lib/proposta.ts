@@ -67,6 +67,10 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
     areaMin,
     areaMax,
     areaPlanejada: r.areaPlanejada ?? areaMin,
+    // O que a obra entrega além da casa (muro, portão, piscina...): só os itens com valor.
+    itensInclusos: ((item.custos_extras as unknown as { descricao?: string; valor?: number }[] | null) ?? [])
+      .filter((x) => (x.valor ?? 0) > 0.005 && (x.descricao ?? "").trim())
+      .map((x) => (x.descricao ?? "").trim()),
     renda: item.renda_declarada,
     custos: {
       terreno: item.terreno_valor,

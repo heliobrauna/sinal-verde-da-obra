@@ -11,6 +11,8 @@ export type PropostaData = {
   areaMin: number;
   areaMax: number;
   areaPlanejada: number;
+  // Itens além da casa que a obra entrega (muro, portão, piscina...).
+  itensInclusos?: string[];
   renda: number;
   custos: { terreno: number; construcao: number; documentos: number; juros: number; servicos?: { rotulo: string; valor: number }[] };
   pagamento: { banco: number; fgts: number; terreno: number; bolso: number };
@@ -118,32 +120,23 @@ function DetalheBolso({ detalhe }: { detalhe: PropostaData["bolsoDetalhe"] }) {
   );
 }
 
-// Régua com a faixa de área que cabe no orçamento e a casa planejada; cada número fica junto do que representa.
-function ReguaArea({ areaMin, areaMax, areaPlanejada }: Pick<PropostaData, "areaMin" | "areaMax" | "areaPlanejada">) {
-  // A escala aproxima a faixa útil (sem começar em zero) para os rótulos não se sobreporem.
-  const inicio = Math.min(areaMin, areaPlanejada) * 0.7;
-  const fim = Math.max(areaMax, areaPlanejada) * 1.1;
-  const pos = (value: number) => `${Math.min(Math.max(((value - inicio) / (fim - inicio || 1)) * 100, 0), 100)}%`;
-  const area = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m²`;
-  const meio = (areaMin + areaMax) / 2;
+// Tamanho da casa para o cliente: área construída total e o que mais a obra entrega; a faixa viável é do construtor.
+function TamanhoCasa({ areaPlanejada, itensInclusos }: Pick<PropostaData, "areaPlanejada" | "itensInclusos">) {
+  const itens = itensInclusos ?? [];
   return (
-    <div className="px-6 pt-8 pb-11">
-      <div className="relative h-4 rounded-full bg-zinc-100">
-        <div className="absolute inset-y-0 rounded-full bg-emerald-300" style={{ left: pos(areaMin), right: `calc(100% - ${pos(areaMax)})` }} />
-        <div className="absolute -top-1.5 h-7 w-1 -translate-x-1/2 rounded-full bg-zinc-900" style={{ left: pos(areaPlanejada) }} />
-        <span className="absolute bottom-full mb-3 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-zinc-900" style={{ left: pos(areaPlanejada) }}>
-          Sua casa: {area(areaPlanejada)}
-        </span>
-        {areaMax - areaMin > 0.05 ? (
-          <>
-            <span className="absolute top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-emerald-700" style={{ left: pos(areaMin) }}>{area(areaMin)}</span>
-            <span className="absolute top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-emerald-700" style={{ left: pos(areaMax) }}>{area(areaMax)}</span>
-          </>
-        ) : (
-          <span className="absolute top-full mt-2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-emerald-700" style={{ left: pos(areaMin) }}>{area(areaMin)}</span>
-        )}
-        <span className="absolute top-full mt-7 -translate-x-1/2 whitespace-nowrap text-xs text-zinc-500" style={{ left: pos(meio) }}>cabe no orçamento</span>
-      </div>
+    <div>
+      <p className="text-3xl font-bold">{areaPlanejada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m²</p>
+      <p className="mt-1 text-sm text-zinc-600">de área construída</p>
+      {itens.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm text-zinc-600">A obra também inclui:</p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {itens.map((item) => (
+              <li key={item} className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-800">{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -288,7 +281,7 @@ export function PropostaCliente({ data }: { data: PropostaData }) {
         </div>
 
         <Bloco titulo="O tamanho da casa">
-          <ReguaArea areaMin={data.areaMin} areaMax={data.areaMax} areaPlanejada={data.areaPlanejada} />
+          <TamanhoCasa areaPlanejada={data.areaPlanejada} itensInclusos={data.itensInclusos ?? []} />
         </Bloco>
 
         <Bloco titulo="Quando você vai precisar de dinheiro">
