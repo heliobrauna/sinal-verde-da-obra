@@ -51,7 +51,8 @@ describe("projeção financeira", () => {
   });
 
   it("soma terreno e remuneração do construtor no custo do imóvel e separa o desembolso do cliente", () => {
-    const result = calculate({ ...input, administracao: 5000, projetos: 7000, honorarios: 8000 });
+    // Para morar, margem e serviços do construtor saem da verba e entram no custo do imóvel.
+    const result = calculate({ ...input, objetivo: "morar", administracao: 5000, projetos: 7000, honorarios: 8000 });
     expect(result.remuneracaoResponsavel).toBe(30000 + 5000 + 7000 + 8000);
     expect(result.custoImovel).toBeCloseTo(result.custoComTerreno + 50000);
     expect(result.custoComTerreno - result.custoTotal).toBeCloseTo(input.terreno);
@@ -66,13 +67,15 @@ describe("projeção financeira", () => {
   });
 
   it("sugere o preço que paga o retorno mínimo do investidor e o lucro desejado do construtor", () => {
-    const parceiro = calculate({ ...input, prazo: 3, participacaoInvestidor: 50, lucroConstrutor: 40000 });
+    // O lucro desejado (margem) de R$ 40 mil é dividido 50/50 depois do retorno mínimo do investidor.
+    const parceiro = calculate({ ...input, prazo: 3, participacaoInvestidor: 50, lucro: 40000 });
     const c = parceiro.cenarios[0]!;
     expect(parceiro.valorVenda).toBeCloseTo(parceiro.precoSugerido);
-    expect(c.lucroConstrutor).toBeCloseTo(40000, 0);
+    expect(c.lucroConstrutor).toBeCloseTo(20000, 0);
+    expect(c.lucroInvestidor).toBeCloseTo(parceiro.retornoPreferencial + 20000, 0);
     expect(c.preferencialPago).toBeCloseTo(parceiro.retornoPreferencial, 0);
     expect(parceiro.precoSugerido).toBeGreaterThan(parceiro.precoMinimo);
-    const sozinho = calculate({ ...input, prazo: 3, temInvestidor: false, lucroConstrutor: 40000 });
+    const sozinho = calculate({ ...input, prazo: 3, temInvestidor: false, lucro: 40000 });
     expect(sozinho.cenarios[0]!.lucroConstrutor).toBeCloseTo(40000, 0);
     // O cenário de atraso mantém o preço sugerido; vender 10% abaixo derruba o lucro.
     expect(parceiro.cenarios[2]?.venda).toBeCloseTo(parceiro.valorVenda);
@@ -89,7 +92,10 @@ describe("projeção financeira", () => {
     const initial = calculate(input);
     const extra = calculate({ ...input, despesas: input.despesas.map((item) => ({ ...item, valor: item.valor + 5000 })) });
     expect(extra.precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(5000 / 0.95);
-    expect(calculate({ ...input, lucro: 35000 }).precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(5000 / 0.95);
+    // Serviços do construtor são custo; o lucro desejado não muda o preço que só devolve o capital, só o sugerido.
+    expect(calculate({ ...input, administracao: 5000 }).precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(5000 / 0.95);
+    expect(calculate({ ...input, lucro: 35000 }).precoEquilibrio).toBeCloseTo(initial.precoEquilibrio);
+    expect(calculate({ ...input, lucro: 35000 }).precoSugerido).toBeGreaterThan(initial.precoSugerido);
     expect(calculate({ ...input, areaPlanejada: 125 }).precoEquilibrio - initial.precoEquilibrio).toBeCloseTo(10000 / 0.95);
     expect(estimatedExpenses(0, 0, 0, 0, 0, 0, 100).find((item) => item.id === "alvara")?.valor).toBe(252);
   });
@@ -211,8 +217,8 @@ describe("projeção financeira", () => {
 
   it("cobra do investidor só o que a obra real custa além do financiamento, mês a mês", () => {
     const result = calculate({ ...input, precoVenda: 600000, areaPlanejada: 170 });
-    // A remuneração do construtor (R$ 30 mil) também sai da verba da obra.
-    expect(result.obraAlemFinanciamento).toBeCloseTo(170 * 2000 + 30000 - 300000);
+    // Na venda, o lucro desejado vem do preço e não sai da verba da obra.
+    expect(result.obraAlemFinanciamento).toBeCloseTo(170 * 2000 - 300000);
     const alem = result.aportesInvestidor.filter((f) => f.rotulo === "Obra além do financiamento");
     expect(alem.reduce((sum, f) => sum + f.valor, 0)).toBeCloseTo(result.obraAlemFinanciamento);
     expect(result.capitalMaximo).toBeGreaterThan(result.dinheiroParaComecar);
@@ -230,17 +236,40 @@ describe("projeção financeira", () => {
     expect(atraso!.lucroConstrutor).toBeLessThan(esperado!.lucroConstrutor);
   });
 
-  it("a remuneração do construtor reduz a área viável igual para morar e para vender", () => {
+  it("serviços do construtor reduzem a área nos dois modos; o lucro desejado só para morar", () => {
     const area = (objetivo: "morar" | "vender", extra: Partial<typeof input>) => calculate({ ...input, objetivo, ...extra }).areaViavelMaxima;
-    expect(area("vender", {})).toBeCloseTo(area("morar", {}));
-    expect(area("vender", { lucro: 0 }) - area("vender", { lucro: 20000 })).toBeCloseTo(20000 / 2000);
-    expect(area("morar", { lucro: 0, administracao: 10000, projetos: 5000, honorarios: 5000 })).toBeCloseTo(area("morar", { lucro: 20000 }));
+    const servicos = { lucro: 0, administracao: 10000, projetos: 5000, honorarios: 5000 };
+    expect(area("vender", servicos)).toBeCloseTo(area("morar", servicos));
+    expect(area("vender", { lucro: 0 })).toBeCloseTo(area("vender", { lucro: 20000 }));
+    expect(area("morar", { lucro: 0 }) - area("morar", { lucro: 20000 })).toBeCloseTo(20000 / 2000);
+    expect(area("morar", servicos)).toBeCloseTo(area("morar", { lucro: 20000 }));
     // Projetos, administração e honorários não aparecem mais como despesas.
     const ids = estimatedExpenses(100000, 400000, 9000, 9000, 9000, 2500, 100).map((item) => item.id);
     expect(ids).not.toContain("projetos");
     expect(ids).not.toContain("administracao");
     expect(estimatedExpenses(100000, 400000, 0, 0, 0, 2500, 100, "SP", false, true, true).some((item) => item.categoria === "Na venda")).toBe(true);
   });
+  it("para morar, a corretagem incide só sobre a construção do contrato e sai da verba", () => {
+    const sem = calculate({ ...input, objetivo: "morar", lucro: 0 });
+    const com = calculate({ ...input, objetivo: "morar", lucro: 0, corretagemConstrucao: 5 });
+    expect(com.corretagemConstrucao).toBeCloseTo(sem.orcamentoObraContrato * 0.05);
+    expect(sem.areaViavelMaxima - com.areaViavelMaxima).toBeCloseTo(com.corretagemConstrucao / 2000);
+    expect(com.remuneracaoDetalhe.corretagem).toBeCloseTo(com.corretagemConstrucao);
+    // Na venda a corretagem é sobre o preço de venda, não sobre a construção.
+    expect(calculate({ ...input, corretagemConstrucao: 5 }).corretagemConstrucao).toBe(0);
+  });
+
+  it("separa o que o investidor precisa ter: entrada, custos fora da obra e aporte só acima da área viável", () => {
+    const dentro = calculate({ ...input, saldoDevedor: 190000, prazo: 3, seguroTarifaMensal: 90 });
+    expect(dentro.areaPlanejada).toBeLessThanOrEqual(dentro.areaViavelMaxima);
+    expect(dentro.investidorAlemEntrada).toBe(0);
+    expect(dentro.investidorEntrada).toBeCloseTo(dentro.dinheiroEntrada + dentro.complementoLote);
+    expect(dentro.investidorTotal).toBeCloseTo(dentro.investidorEntrada + dentro.investidorCustos);
+    expect(dentro.reservaAtraso).toBeCloseTo(dentro.prestacaoInicial * 6);
+    const acima = calculate({ ...input, saldoDevedor: 190000, prazo: 3, areaPlanejada: dentro.areaViavelMaxima + 10 });
+    expect(acima.investidorAlemEntrada).toBeCloseTo(10 * 2000, 0);
+  });
+
   it("usa todos os recursos operacionais, sem reserva fixa", () => {
     const result = calculate({ ...input, despesas: [], lucro: 0 });
     expect(result.disponivel).toBeCloseTo(result.recursosUtilizaveis);

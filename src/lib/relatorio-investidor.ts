@@ -23,6 +23,9 @@ type ResultadoVenda = {
   custoComTerreno?: number;
   valorVenda?: number;
   capitalMaximo?: number;
+  investidorTotal?: number;
+  capitalGiro?: number;
+  reservaAtraso?: number;
   capitalAportadoInvestidor?: number;
   aportesInvestidor?: { mes: number; rotulo: string; valor: number; retornoMes?: number; patrimonio?: boolean }[];
   prazoExecucaoMeses?: number;
@@ -57,6 +60,8 @@ export type RelatorioInvestidorData = {
   precoVenda: number;
   custoTotal: number;
   capitalMaximo: number;
+  caixaTemporario: number;
+  reservaAtraso: number;
   capitalTotal: number;
   // Seu terreno, quando entra na operação: não é dinheiro novo, mas é capital que volta na venda.
   terreno: number;
@@ -102,7 +107,9 @@ export function montarRelatorioInvestidor(item: Tables<"simulacoes">): Relatorio
     mesVenda: r.mesVenda ?? mesesObra,
     precoVenda: r.valorVenda,
     custoTotal: r.custoComTerreno ?? 0,
-    capitalMaximo: r.capitalMaximo,
+    capitalMaximo: r.investidorTotal ?? r.capitalMaximo,
+    caixaTemporario: r.investidorTotal !== undefined ? r.capitalGiro ?? 0 : 0,
+    reservaAtraso: r.reservaAtraso ?? 0,
     capitalTotal: r.capitalAportadoInvestidor ?? 0,
     terreno,
     fases: {

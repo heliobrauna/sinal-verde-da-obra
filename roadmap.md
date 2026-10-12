@@ -61,3 +61,6 @@
 - [ ] Subsídio das faixas 1 e 2 na pré-análise
 - [ ] Acompanhamento da obra depois do contrato: medição × liberação × caixa
 - [x] Venda: preço sugerido pelos custos + retorno mínimo do investidor + lucro desejado do construtor, com conferência pelo m² da região
+- [x] Lucro desejado único: para morar sai da verba; para vender vem do preço e é dividido com o investidor
+- [x] Corretagem sobre a construção no modo morar, paga na assinatura
+- [x] "Investidor precisa ter" em camadas: entrada, custos fora da obra, aporte só acima da área viável, caixa temporário e reserva de atraso

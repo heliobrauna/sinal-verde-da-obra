@@ -123,7 +123,13 @@ export function RelatorioInvestidor({ data }: { data: RelatorioInvestidorData })
         <div className="grid gap-5 md:grid-cols-2">
           <Bloco titulo="Quanto você precisa ter">
             <p className="text-3xl font-bold">{BRL.format(data.capitalMaximo)}</p>
-            <p className="mt-1 text-sm text-zinc-600">É o máximo de dinheiro seu aplicado ao mesmo tempo. Ele não sai todo de uma vez: entra em etapas e uma parte volta no fim da obra.</p>
+            <p className="mt-1 text-sm text-zinc-600">A entrada e os custos que não são obra (taxas, cartório, juros e parcelas até a venda). Não sai tudo de uma vez: entra em etapas ao longo da obra.</p>
+            {(data.caixaTemporario > 0.005 || data.reservaAtraso > 0.005) && (
+              <p className="mt-2 text-xs text-zinc-500">
+                {data.caixaTemporario > 0.005 && `Mais ${BRL.format(data.caixaTemporario)} de caixa para começar, que volta com as medições. `}
+                {data.reservaAtraso > 0.005 && `Se a venda atrasar 6 meses, separe ${BRL.format(data.reservaAtraso)} para as parcelas.`}
+              </p>
+            )}
             {data.terreno > 0.005 && <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs text-zinc-600">Seu terreno também entra na operação, valendo {BRL.format(data.terreno)}. Ele volta para você na venda, junto com o capital.</p>}
           </Bloco>
           <Bloco titulo="Quanto você recebe">

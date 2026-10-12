@@ -87,6 +87,8 @@ export type SimulationInput = {
   precoVenda?: number;
   // Preço do m² de casa pronta na região (opcional): só confere o preço sugerido com o mercado.
   precoM2Mercado?: number;
+  // Morar: corretagem (%) sobre o valor da construção no contrato, paga na assinatura ao corretor do cliente.
+  corretagemConstrucao?: number;
   // Sem investidor parceiro, o próprio construtor financia e fica com todo o resultado.
   temInvestidor?: boolean;
   // Algumas agências exigem depositar a entrada em dinheiro; sem isso ela é só comprovação de recursos.
@@ -326,15 +328,21 @@ function calcular(input: SimulationInput) {
   // A verba da obra paga construção, extras e despesas durante a obra. Despesas antes do contrato,
   // da assinatura e os juros mensais de obra saem do bolso do cliente.
   const custoM2 = input.maoDeObra + input.materiais;
-  // Remuneração do construtor (margem + administração + projetos + honorários) sai da verba da obra nos dois
-  // modos: o imóvel é o mesmo e a área viável também, seja para morar, seja para vender.
+  // Serviços do construtor (administração, projetos, honorários) saem da verba da obra nos dois modos. O lucro
+  // desejado (margem) é o mesmo conceito nos dois: para morar sai da verba; para vender vem do preço e é
+  // dividido com o investidor, sem reduzir a área. Para morar, a corretagem sobre a construção também sai da verba.
+  const margemDesejada = Math.max(input.lucro, 0);
+  const vendaModo = input.objetivo === "vender";
+  const corretagemConstrucaoPct = vendaModo ? 0 : Math.min(Math.max(input.corretagemConstrucao ?? 0, 0), 100);
+  const corretagemConstrucao = orcamentoObraContrato * corretagemConstrucaoPct / 100;
   const remuneracaoDetalhe = {
-    margem: Math.max(input.lucro, 0),
+    margem: vendaModo ? 0 : margemDesejada,
     administracao: Math.max(input.administracao ?? 0, 0),
     projetos: Math.max(input.projetos ?? 0, 0),
     honorarios: Math.max(input.honorarios ?? 0, 0),
+    corretagem: corretagemConstrucao,
   };
-  const reservaLucro = remuneracaoDetalhe.margem + remuneracaoDetalhe.administracao + remuneracaoDetalhe.projetos + remuneracaoDetalhe.honorarios;
+  const reservaLucro = remuneracaoDetalhe.margem + remuneracaoDetalhe.administracao + remuneracaoDetalhe.projetos + remuneracaoDetalhe.honorarios + remuneracaoDetalhe.corretagem;
   const disponivel = Math.max(0, recursosUtilizaveis - extrasTotal - despesasObra - reservaLucro);
   const areaViavelMaxima = custoM2 > 0 ? disponivel / custoM2 : 0;
   const areaViavelMinima = custoM2 > 0 ? disponivel / (custoM2 * 1.18) : 0;
@@ -465,12 +473,10 @@ function calcular(input: SimulationInput) {
     }
     return alto;
   };
-  // Preço sugerido: o lucro da venda precisa pagar o retorno mínimo do investidor e deixar ao construtor o lucro
-  // desejado depois de o investidor levar a parte dele no excedente. Sem parceiro, o lucro todo é do construtor.
-  const lucroAlvoConstrutor = vender ? Math.max(input.lucroConstrutor ?? 0, 0) : 0;
-  const lucroNecessario = !temInvestidor
-    ? lucroAlvoConstrutor
-    : retornoPreferencial + (participacaoInvestidor < 100 ? lucroAlvoConstrutor / (1 - participacaoInvestidor / 100) : 0);
+  // Preço sugerido: custos + retorno mínimo do investidor + lucro desejado. O lucro desejado é dividido entre
+  // construtor e investidor pela participação combinada; sem parceiro, é todo do construtor.
+  const lucroAlvoConstrutor = vender ? margemDesejada : 0;
+  const lucroNecessario = temInvestidor ? retornoPreferencial + margemDesejada : margemDesejada;
   const precoSugerido = vender ? precoPara(lucroNecessario) : 0;
   // Referências internas (relatório do investidor): preço que só devolve o capital e o que paga o retorno mínimo.
   const precoEquilibrio = vender ? precoPara(0) : 0;
@@ -481,6 +487,14 @@ function calcular(input: SimulationInput) {
   const precoParaLucroConstrutor = vender ? precoSugerido : null;
   // Conferência com o mercado: m² de casa pronta na região × área planejada.
   const precoMercadoEstimado = vender && (input.precoM2Mercado ?? 0) > 0 ? (input.precoM2Mercado ?? 0) * areaPlanejada : 0;
+  // O que quem financia precisa ter, por camada: a entrada (dentro da área viável, ela cobre a parte da obra que
+  // o banco não paga), custos que não são obra (taxas, cartório, juros e parcelas até a venda) e, só acima da
+  // área viável, o aporte além da entrada. O caixa para começar é temporário; a reserva cobre um atraso de venda.
+  const investidorEntrada = vender ? dinheiroEntrada + complementoLote : 0;
+  const investidorCustos = vender ? despesasPreContrato + despesasAssinatura + jurosObra + jurosPosObra + amortizacaoEstimada : 0;
+  const investidorAlemEntrada = vender ? aporteParaAreaPlanejada : 0;
+  const investidorTotal = investidorEntrada + investidorCustos + investidorAlemEntrada;
+  const reservaAtraso = vender ? prestacaoInicial * MESES_ATRASO_VENDA : 0;
   const cenarios = [0, -QUEDA_PRECO_CENARIO].map((ajuste) => {
     const venda = valorVenda * (1 + ajuste);
     const corretagem = venda * taxaCorretagem;
@@ -519,7 +533,8 @@ function calcular(input: SimulationInput) {
     valorVenda, corretagemPercentual: input.corretagem, corretagemValor: valorVenda * taxaCorretagem,
     lucroDesejado: lucroOperacao, mesesAposObra, precoInformado, custoImovel, remuneracaoDetalhe,
     despesasVenda, custoAquisicaoIr, fatorReducao, irVenda: vender ? irNaVenda(valorVenda) : 0, ganhoCapitalVenda: vender ? ganhoCapital(valorVenda) : 0,
-    precoEquilibrio, precoMinimo, precoParaLucroConstrutor, lucroAlvoConstrutor, precoSugerido, precoMercadoEstimado, temInvestidor, entradaDepositada,
+    precoEquilibrio, precoMinimo, precoParaLucroConstrutor, lucroAlvoConstrutor, precoSugerido, precoMercadoEstimado,
+    investidorEntrada, investidorCustos, investidorAlemEntrada, investidorTotal, reservaAtraso, corretagemConstrucao, corretagemConstrucaoPct, temInvestidor, entradaDepositada,
     obraAlemFinanciamento, folgaFinanciamento, entradaAplicada, dividaNaVenda, capitalMaximo, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
     capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,

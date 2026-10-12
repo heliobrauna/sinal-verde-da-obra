@@ -42,6 +42,12 @@ type R = {
   despesas?: ClientExpense[];
   cubReferencia?: { competencia: string; projeto: string; origem: string };
   capitalMaximo?: number;
+  investidorEntrada?: number;
+  investidorCustos?: number;
+  investidorAlemEntrada?: number;
+  investidorTotal?: number;
+  reservaAtraso?: number;
+  corretagemConstrucao?: number;
   precoMinimo?: number;
   precoSugerido?: number;
   precoMercadoEstimado?: number;
@@ -256,7 +262,7 @@ function Result() {
   const sobra = Math.max(r.saldoRecursos ?? 0, 0);
   // Para morar, a remuneração do responsável sai da verba da obra e faz parte do custo do imóvel.
   // Remuneração do construtor: nos dois modos quando o cálculo é atual; vendas antigas não a reservavam.
-  const detalheRemuneracao = (r as { remuneracaoDetalhe?: { margem: number; administracao: number; projetos: number; honorarios: number } }).remuneracaoDetalhe;
+  const detalheRemuneracao = (r as { remuneracaoDetalhe?: { margem: number; administracao: number; projetos: number; honorarios: number; corretagem?: number } }).remuneracaoDetalhe;
   const remuneracao = detalheRemuneracao ? (r.remuneracaoResponsavel ?? 0) : vender ? 0 : (r.remuneracaoResponsavel ?? lucro);
   const custoImovel = hasValue(custoComTerreno) ? custoComTerreno + remuneracao : undefined;
   const proposta = !vender && hasValue(custoComTerreno) && r.desembolsoProprio !== undefined && r.financiamentoConstrucao !== undefined;
@@ -433,9 +439,16 @@ function Result() {
               <div>
               {vendaAtual && hasValue(r.capitalMaximo) && (
                 <div className="mb-4 rounded-lg border border-secondary/30 bg-secondary/5 p-4">
-                  <p className="text-sm text-muted-foreground">{investidor ? "O investidor precisa ter disponível" : "Você precisa ter disponível"}</p>
-                  <p className="mt-1 text-2xl font-bold text-secondary">{BRL.format(r.capitalMaximo)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Maior valor aplicado ao mesmo tempo. A entrada em dinheiro é só comprovação, salvo exigência da agência.</p>
+                  <p className="text-sm text-muted-foreground">{investidor ? "O investidor precisa ter" : "Você precisa ter"}</p>
+                  <p className="mt-1 text-2xl font-bold text-secondary">{BRL.format(r.investidorTotal ?? r.capitalMaximo)}</p>
+                  {r.investidorTotal !== undefined ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Entrada {BRL.format(r.investidorEntrada ?? 0)} + taxas, cartório e juros {BRL.format(r.investidorCustos ?? 0)}{hasValue(r.investidorAlemEntrada) ? ` + aporte acima da área viável ${BRL.format(r.investidorAlemEntrada)}` : " (sem aporte além da entrada)"}.
+                      {hasValue(r.capitalGiro) && ` Caixa temporário para começar: ${BRL.format(r.capitalGiro)}.`}{hasValue(r.reservaAtraso) && ` Reserva se a venda atrasar 6 meses: ${BRL.format(r.reservaAtraso)}.`}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">Maior valor aplicado ao mesmo tempo. A entrada em dinheiro é só comprovação, salvo exigência da agência.</p>
+                  )}
                 </div>
               )}
               <Rows
@@ -515,10 +528,11 @@ function Result() {
               ...extras.map((x): Row => [x.descricao || "Custo extra", x.valor]),
               ...(detalheRemuneracao
                 ? ([
-                    ["Remuneração · margem ou valor global", detalheRemuneracao.margem],
+                    ["Remuneração · lucro desejado (margem)", detalheRemuneracao.margem],
                     ["Remuneração · administração do processo", detalheRemuneracao.administracao],
                     ["Remuneração · projetos", detalheRemuneracao.projetos],
                     ["Remuneração · honorários técnicos", detalheRemuneracao.honorarios],
+                    ["Corretagem do corretor (paga na assinatura)", detalheRemuneracao.corretagem],
                   ] as Row[])
                 : [["Remuneração do responsável", remuneracao] as Row]),
               ...(r.despesas ?? []).map((x): Row => [x.nome, x.valor]),
