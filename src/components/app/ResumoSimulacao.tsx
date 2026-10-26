@@ -23,9 +23,9 @@ type ResumoResultado = {
 };
 
 const SINAL: Record<SinalProposta, { rotulo: string; classe: string }> = {
-  verde: { rotulo: "Sinal verde", classe: "bg-emerald-500/15 text-emerald-400" },
-  amarelo: { rotulo: "Sinal amarelo", classe: "bg-amber-500/15 text-amber-400" },
-  vermelho: { rotulo: "Sinal vermelho", classe: "bg-red-500/15 text-red-400" },
+  verde: { rotulo: "Sinal verde", classe: "bg-primary/15 text-primary" },
+  amarelo: { rotulo: "Sinal amarelo", classe: "bg-secondary/15 text-secondary" },
+  vermelho: { rotulo: "Sinal vermelho", classe: "bg-destructive/15 text-destructive" },
 };
 
 // Resumo do card: área, os números que o construtor confere primeiro e o sinal da proposta (morar).

@@ -100,6 +100,38 @@
   --sidebar-ring: oklch(0.723 0.191 149.58);
 }
 
+/* Tema claro (data-theme="light" no <html>, aplicado pelo seletor do topo ou pelo sistema). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: oklch(0.985 0.002 250);
+  --foreground: oklch(0.2 0.01 285);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.01 285);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.01 285);
+  --primary: oklch(0.53 0.15 150);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.56 0.14 65);
+  --secondary-foreground: oklch(0.99 0 0);
+  --muted: oklch(0.955 0.004 285);
+  --muted-foreground: oklch(0.46 0.01 285);
+  --accent: oklch(0.94 0.04 150);
+  --accent-foreground: oklch(0.28 0.07 150);
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.9 0.005 285);
+  --input: oklch(0.87 0.006 285);
+  --ring: oklch(0.53 0.15 150);
+  --sidebar: oklch(0.97 0.003 285);
+  --sidebar-foreground: oklch(0.2 0.01 285);
+  --sidebar-primary: oklch(0.53 0.15 150);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.005 285);
+  --sidebar-accent-foreground: oklch(0.2 0.01 285);
+  --sidebar-border: oklch(0.9 0.005 285);
+  --sidebar-ring: oklch(0.53 0.15 150);
+}
+
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);

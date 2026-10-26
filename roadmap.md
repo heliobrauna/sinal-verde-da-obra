@@ -65,3 +65,5 @@
 - [x] Corretagem sobre a construção no modo morar, paga na assinatura
 - [x] "Investidor precisa ter" em camadas: entrada, custos fora da obra, aporte só acima da área viável, caixa temporário e reserva de atraso
 - [x] Terreno pelas modalidades da Caixa: construção em terreno próprio ou aquisição de terreno e construção (preço e saldo devedor)
+- [x] Modo claro com seletor Claro · Escuro · Automático no topo
+- [ ] Questionário do Manychat que gera e envia a pré-proposta automaticamente

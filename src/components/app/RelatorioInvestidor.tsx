@@ -108,7 +108,7 @@ export function RelatorioInvestidor({ data }: { data: RelatorioInvestidorData })
           Imprimir ou salvar PDF
         </Button>
       </div>
-      <article className="mx-auto max-w-4xl space-y-5 rounded-3xl bg-white p-6 text-zinc-900 shadow-sm md:p-10 print:max-w-none print:rounded-none print:p-0 print:shadow-none" style={printExact}>
+      <article className="mx-auto max-w-4xl space-y-5 rounded-3xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm md:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none" style={printExact}>
         <header className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-200 pb-5">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-sky-700">Proposta de investimento · Sinal Verde da Obra</p>

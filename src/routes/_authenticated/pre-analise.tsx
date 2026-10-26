@@ -162,7 +162,7 @@ function PreAnalise() {
                 )}
                 <p className="text-muted-foreground">{r.faixa.observacao}</p>
                 {r.terrenoMaiorQueImovel && <p className="text-destructive">O terreno vale mais do que o imóvel possível: não sobra verba para a obra.</p>}
-                {r.loteAcimaDoLimiteBanco && <p className="text-amber-400">O banco quita o lote comprado até 30% do contrato; o que passar disso sai da entrada.</p>}
+                {r.loteAcimaDoLimiteBanco && <p className="text-secondary">O banco quita o lote comprado até 30% do contrato; o que passar disso sai da entrada.</p>}
                 {rendaInformal > 0 && <p className="text-muted-foreground">A renda informal depende de comprovação; sem ela o valor cai.</p>}
                 {fgts > 0 && <p className="text-muted-foreground">FGTS só para o primeiro imóvel residencial do titular na cidade, com 3 anos de trabalho com FGTS somados.</p>}
                 <p className="text-muted-foreground">Documentação, impostos e juros da obra são pagos à parte, e o cliente precisa de dinheiro para começar (cerca de 10% da obra), que volta com as medições. A simulação completa calcula tudo isso e a área exata a construir.</p>
