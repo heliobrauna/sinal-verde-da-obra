@@ -145,6 +145,8 @@ function PreAnalise() {
                     {r.dinheiroNaEntrada > 0 && <Linha rotulo="— dinheiro" valor={r.dinheiroNaEntrada} sub />}
                     {r.faltaEntrada > 0 && <Linha rotulo="— falta juntar" valor={r.faltaEntrada} sub destaque />}
                     {r.terrenoNaOperacao > 0 && <Linha rotulo={situacaoLote === "loteadora" ? "Saldo do lote pago à loteadora na operação" : "Terreno pago ao vendedor na operação"} valor={r.terrenoNaOperacao} />}
+                    {r.terrenoNaOperacao > 0 && r.fgtsNoLote > 0 && <Linha rotulo="— pelo FGTS, na assinatura" valor={r.fgtsNoLote} sub />}
+                    {r.terrenoNaOperacao > 0 && r.fgtsNoLote > 0 && r.loteBanco > 0 && <Linha rotulo="— pelo banco" valor={r.loteBanco} sub />}
                     <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-3">
                       <dt className="min-w-0 font-semibold">{sistema === "SAC" ? "Primeira prestação (depois diminui)" : "Prestação depois da obra"}</dt>
                       <dd className="whitespace-nowrap font-semibold">{BRL.format(r.prestacao)}</dd>
@@ -171,7 +173,8 @@ function PreAnalise() {
                 {r.terrenoMaiorQueImovel && <p className="text-destructive">O terreno vale mais do que o imóvel possível: não sobra verba para a obra.</p>}
                 {r.loteAcimaDoLimiteBanco && <p className="text-secondary">O banco quita o lote comprado até 30% do contrato; o que passar disso sai da entrada.</p>}
                 {rendaInformal > 0 && <p className="text-muted-foreground">A renda informal depende de comprovação; sem ela o valor cai.</p>}
-                {fgts > 0 && <p className="text-muted-foreground">FGTS só para o primeiro imóvel residencial do titular na cidade, com 3 anos de trabalho com FGTS somados.</p>}
+                {r.fgtsNoLote > 0 && <p className="text-muted-foreground">O FGTS paga o lote ao vendedor na assinatura: o banco quita menos lote, a dívida começa menor e os juros durante a obra caem.{r.fgtsNaEntrada > r.fgtsNoLote && " O FGTS que sobra é liberado junto com as medições da obra."}</p>}
+                {fgts > 0 && <p className="text-muted-foreground">FGTS só para o imóvel residencial do titular, na cidade onde mora ou trabalha, sem outro imóvel lá e sem financiamento ativo no SFH, com 3 anos de trabalho com FGTS somados. Depois da obra ele ainda pode amortizar a dívida a cada 2 anos ou pagar até 80% de 12 prestações.</p>}
                 <p className="text-muted-foreground">Documentação, impostos e juros da obra são pagos à parte, e o cliente precisa de dinheiro para começar (cerca de 10% da obra), que volta com as medições. A simulação completa calcula tudo isso e a área exata a construir.</p>
                 <Button asChild className="mt-2 w-full">
                   <Link

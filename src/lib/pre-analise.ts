@@ -122,6 +122,10 @@ export function preAnalise(input: PreAnaliseInput) {
   const fgtsNaEntrada = Math.min(fgts, entrada - agioNaEntrada);
   const dinheiroNaEntrada = Math.min(dinheiro, entrada - agioNaEntrada - fgtsNaEntrada);
   const faltaEntrada = Math.max(entrada - agioNaEntrada - fgtsNaEntrada - dinheiroNaEntrada, 0);
+  // O FGTS paga primeiro o saldo do lote ao vendedor na assinatura (menos dívida desde o início, menos juros de obra);
+  // o banco quita o restante até 30% do contrato e o FGTS que sobra é liberado nas medições da obra.
+  const fgtsNoLote = Math.min(fgtsNaEntrada, saldoLote);
+  const loteBanco = Math.min(saldoLote - fgtsNoLote, valorImovel * LIMITE_LOTE_CONTRATO, financiamento);
   // Com a entrada de hoje (20% do imóvel), o imóvel possível é 5 vezes os recursos, sem passar do limite da renda.
   const imovelComEntradaAtual = faltaEntrada > 0 ? Math.min(valorImovel, recursosEntrada / (1 - COTA_FINANCIAMENTO)) : valorImovel;
   const financiamentoComEntradaAtual = financiarImovel(imovelComEntradaAtual);
@@ -136,11 +140,11 @@ export function preAnalise(input: PreAnaliseInput) {
     limites, limitadoPor, valorImovel, financiamento, entrada,
     agioNaEntrada, fgtsNaEntrada, dinheiroNaEntrada, faltaEntrada, imovelComEntradaAtual, financiamentoComEntradaAtual,
     // Saldo do lote (ou preço do lote a comprar) pago ao vendedor na operação.
-    saldoLote,
+    saldoLote, fgtsNoLote, loteBanco,
     terrenoNaOperacao: saldoLote,
     prestacao, verbaObra, area,
     terrenoMaiorQueImovel: terreno > valorImovel,
     // O banco quita o saldo do lote até 30% do contrato; o restante precisa sair da entrada.
-    loteAcimaDoLimiteBanco: saldoLote > valorImovel * LIMITE_LOTE_CONTRATO,
+    loteAcimaDoLimiteBanco: saldoLote - fgtsNoLote > valorImovel * LIMITE_LOTE_CONTRATO,
   };
 }

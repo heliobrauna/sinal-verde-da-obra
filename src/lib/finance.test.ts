@@ -34,13 +34,24 @@ describe("projeção financeira", () => {
     expect(result.agioNaEntrada).toBe(10000);
     expect(result.fgtsNaEntrada).toBe(20000);
     expect(result.dinheiroEntrada).toBe(70000);
-    // Limite de 30% de R$ 500 mil: o banco quita R$ 150 mil e R$ 40 mil saem da entrada em dinheiro.
+    // O FGTS paga R$ 20 mil do lote na assinatura; o banco quita R$ 150 mil (30% de R$ 500 mil) e R$ 20 mil saem da entrada em dinheiro.
+    expect(result.fgtsNoLote).toBe(20000);
     expect(result.limiteFinanciavelLote).toBe(150000);
     expect(result.quitacaoLote).toBe(150000);
-    expect(result.saldoLoteNaoCoberto).toBe(40000);
+    expect(result.saldoLoteNaoCoberto).toBe(20000);
     expect(result.complementoLote).toBe(0);
     expect(result.recursosUtilizaveis).toBe(300000);
     expect(result.desembolsoAssinatura).toBe(70000);
+  });
+
+  it("FGTS paga o lote antes do banco: dívida menor na assinatura e menos juros de obra", () => {
+    const sem = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 150000, fgtsUtilizado: 0 });
+    const com = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 150000, fgtsUtilizado: 30000 });
+    expect(com.fgtsNoLote).toBe(30000);
+    expect(com.quitacaoLote).toBe(sem.quitacaoLote - 30000);
+    expect(com.financiamentoConstrucao).toBe(sem.financiamentoConstrucao + 30000);
+    expect(com.recursosUtilizaveis).toBeCloseTo(sem.recursosUtilizaveis, 6);
+    expect(com.jurosObra).toBeLessThan(sem.jurosObra);
   });
 
   it("não libera para a obra mais que o orçamento quando o ágio supera a entrada", () => {

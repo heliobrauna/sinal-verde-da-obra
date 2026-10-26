@@ -279,24 +279,28 @@ function calcular(input: SimulationInput) {
   const fgtsUtilizado = input.objetivo === "vender" ? 0 : Math.max(input.fgtsUtilizado, 0);
   const fgtsNaEntrada = Math.min(fgtsUtilizado, entradaExigida - agioNaEntrada);
   const dinheiroEntrada = entradaExigida - agioNaEntrada - fgtsNaEntrada;
-  // O banco quita o saldo do lote até 30% do valor do contrato (aceito sem laudo do lote).
+  // Na aquisição de terreno e construção o FGTS pode pagar o lote ao vendedor na assinatura (Manual FGTS
+  // Moradia Própria, 4.2.3.1 e 8.5.2.4). É o melhor uso: o banco paga menos lote, a dívida começa menor e os
+  // juros de obra caem; o dinheiro do banco que sobra vai para a obra. O FGTS que sobra é liberado nas medições.
+  const fgtsNoLote = Math.min(fgtsNaEntrada, saldoDevedor);
+  // O banco quita o restante do saldo do lote até 30% do valor do contrato (aceito sem laudo do lote).
   const limiteFinanciavelLote = valorOperacao * LIMITE_LOTE_CONTRATO;
-  const quitacaoLote = Math.min(credito, saldoDevedor, limiteFinanciavelLote);
-  const saldoLoteNaoCoberto = Math.max(saldoDevedor - quitacaoLote, 0);
+  const quitacaoLote = Math.min(credito, saldoDevedor - fgtsNoLote, limiteFinanciavelLote);
+  const saldoLoteNaoCoberto = Math.max(saldoDevedor - fgtsNoLote - quitacaoLote, 0);
   const orcamentoObraContrato = Math.max(valorOperacao - input.terreno, 0);
   // Quando o ágio supera a entrada, o banco não libera para a obra mais do que o orçamento contratado.
   const financiamentoDisponivelObra = Math.max(credito - quitacaoLote, 0);
   const financiamentoConstrucao = Math.min(financiamentoDisponivelObra, orcamentoObraContrato);
   const financiamentoExcedente = financiamentoDisponivelObra - financiamentoConstrucao;
-  // Saldo do lote que o banco não quita e que a entrada em dinheiro/FGTS não cobre sai do bolso na assinatura.
-  const complementoLote = Math.max(saldoLoteNaoCoberto - dinheiroEntrada - fgtsNaEntrada, 0);
+  // Saldo do lote que nem o FGTS nem o banco quitam e que a entrada em dinheiro não cobre sai do bolso na assinatura.
+  const complementoLote = Math.max(saldoLoteNaoCoberto - dinheiroEntrada, 0);
   // Sugestão para preencher o contrato: o banco financia 80% de cada parte (lote e obra). Quando o
   // pagamento do lote passa de 80% do valor informado, o lote vai ao papel como pagamento ÷ 0,8 e a obra
   // fica com o restante. Valor do imóvel e financiamento total não mudam; só a divisão entre as partes.
   const loteContrato = Math.max(input.terreno, quitacaoLote / PERCENTUAL_FINANCIADO_PARTE);
   const obraContrato = Math.max(valorOperacao - loteContrato, 0);
   const redistribuicaoContrato = loteContrato > input.terreno + 0.005;
-  const verbaContrato = Math.min(financiamentoConstrucao + fgtsNaEntrada + dinheiroEntrada, orcamentoObraContrato);
+  const verbaContrato = Math.min(financiamentoConstrucao + fgtsNaEntrada - fgtsNoLote + dinheiroEntrada, orcamentoObraContrato);
   const recursosUtilizaveis = verbaContrato;
 
   const taxaMensalPercentual = annualToMonthlyRate(input.jurosAnuais);
@@ -547,7 +551,7 @@ function calcular(input: SimulationInput) {
     lucroConstrutorDesejado: lucroAlvoConstrutor > 0 ? lucroAlvoConstrutor : null,
     construtorSemExcedente: vender && temInvestidor && participacaoInvestidor >= 100,
     terreno: input.terreno, saldoDevedor, credito, valorOperacao, entradaExigida,
-    agioLote, agioNaEntrada, fgtsUtilizado, fgtsNaEntrada, dinheiroEntrada,
+    agioLote, agioNaEntrada, fgtsUtilizado, fgtsNaEntrada, fgtsNoLote, dinheiroEntrada,
     limiteFinanciavelLote, loteContrato, obraContrato, redistribuicaoContrato,
     quitacaoLote, saldoLoteNaoCoberto, complementoLote, orcamentoObraContrato,
     financiamentoConstrucao, financiamentoExcedente, recursosUtilizaveis,

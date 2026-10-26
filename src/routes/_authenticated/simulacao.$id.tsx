@@ -64,6 +64,7 @@ type R = {
   fgtsUtilizado?: number;
   agioLote?: number;
   quitacaoLote?: number;
+  fgtsNoLote?: number;
   saldoLoteNaoCoberto?: number;
   financiamentoConstrucao?: number;
   recursosUtilizaveis?: number;
@@ -495,7 +496,8 @@ function Result() {
               ["Entrada · ágio do lote", r.agioNaEntrada],
               ["Entrada · FGTS", r.fgtsNaEntrada],
               ["Entrada · dinheiro", r.dinheiroEntrada],
-              ["Quitação do lote", r.quitacaoLote],
+              ["Lote pago pelo FGTS (na assinatura)", r.fgtsNoLote],
+              [r.fgtsNoLote ? "Lote pago pelo banco" : "Quitação do lote", r.quitacaoLote],
               ["Financiamento para a obra", r.financiamentoConstrucao],
             ]}
             total={["Verba disponível para obra", r.recursosUtilizaveis]}

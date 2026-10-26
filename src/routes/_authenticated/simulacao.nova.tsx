@@ -857,7 +857,7 @@ function Wizard() {
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">Orçamento da obra no contrato (imóvel − terreno): <strong className="text-foreground">{BRL.format(baseResult.orcamentoObraContrato)}</strong></p>
                   {baseResult.financiamentoExcedente > 0 && <p className="mt-3 text-xs text-secondary">O ágio cobre mais que a entrada: o banco tende a liberar no máximo {BRL.format(baseResult.financiamentoConstrucao)} para a obra ({BRL.format(baseResult.financiamentoExcedente)} a menos que o valor informado).</p>}
-                  {modalidadeTerreno === "atc" && <p className="mt-3 text-xs text-muted-foreground">{"Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Limite para o lote: 30% do contrato ({BRL.format(baseResult.limiteFinanciavelLote)}).{baseResult.saldoLoteNaoCoberto > 0 && " O excedente sai da entrada em dinheiro."}</p>}
+                  {modalidadeTerreno === "atc" && <p className="mt-3 text-xs text-muted-foreground">{baseResult.fgtsNoLote > 0 && `Pagamento do lote pelo FGTS na assinatura: ${BRL.format(baseResult.fgtsNoLote)}. `}{"Pagamento do lote pelo banco ao vendedor"}: {BRL.format(baseResult.quitacaoLote)}.{baseResult.saldoLoteNaoCoberto > 0 && ` Saldo não coberto: ${BRL.format(baseResult.saldoLoteNaoCoberto)}.`} Limite para o lote: 30% do contrato ({BRL.format(baseResult.limiteFinanciavelLote)}).{baseResult.saldoLoteNaoCoberto > 0 && " O excedente sai da entrada em dinheiro."}</p>}
                 </div>
               </div>
             )}
