@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BRL, NUMBER, type SistemaAmortizacao } from "@/lib/finance";
-import { COMPROMETIMENTO_RENDA, jurosSugeridos, faixaPorRenda, preAnalise } from "@/lib/pre-analise";
+import { COMPROMETIMENTO_RENDA, jurosSugeridos, faixaPorRenda, preAnalise, type SituacaoLote } from "@/lib/pre-analise";
 
 export const Route = createFileRoute("/_authenticated/pre-analise")({
   head: () => ({
@@ -27,7 +27,6 @@ export const Route = createFileRoute("/_authenticated/pre-analise")({
 
 const MOTIVO = {
   renda: "A renda é o limite: a prestação já usa 30% dela. Mais entrada não aumenta o imóvel.",
-  entrada: "A entrada é o limite: o banco financia até 80%, então o cliente precisa de 20% em terreno próprio, FGTS ou dinheiro. Mais entrada aumenta o imóvel até o limite da renda.",
   faixa: "O teto do imóvel da faixa é o limite. Acima dele o cliente sai desta faixa do programa e a taxa sobe.",
 } as const;
 
@@ -39,14 +38,15 @@ function PreAnalise() {
   const [fgts, setFgts] = useState(0);
   const [dinheiro, setDinheiro] = useState(0);
   const [terreno, setTerreno] = useState(0);
-  const [terrenoProprio, setTerrenoProprio] = useState(true);
+  const [situacaoLote, setSituacaoLote] = useState<SituacaoLote>("quitado");
+  const [saldoLote, setSaldoLote] = useState(0);
   const [precoM2Pronto, setPrecoM2Pronto] = useState(0);
   const [sistema, setSistema] = useState<SistemaAmortizacao>("PRICE");
   const [jurosManual, setJurosManual] = useState<number | null>(null);
   const [seguroTarifa, setSeguroTarifa] = useState(100);
   const r = useMemo(
-    () => preAnalise({ rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, terrenoProprio, sistema, jurosAnuais: jurosManual, seguroTarifaMensal: seguroTarifa, precoM2Pronto }),
-    [rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, terrenoProprio, sistema, jurosManual, seguroTarifa, precoM2Pronto],
+    () => preAnalise({ rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, situacaoLote, saldoLote, sistema, jurosAnuais: jurosManual, seguroTarifaMensal: seguroTarifa, precoM2Pronto }),
+    [rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, situacaoLote, saldoLote, sistema, jurosManual, seguroTarifa, precoM2Pronto],
   );
   const jurosFaixa = jurosSugeridos(faixaPorRenda(rendaFormal + rendaInformal), cotistaFgts);
   const pronto = r.renda > 0 && r.prazo > 0 && r.valorImovel > 0;
@@ -79,12 +79,13 @@ function PreAnalise() {
             {field("Valor do terreno", terreno, setTerreno)}
             <div className="sm:col-span-2">
               <Label>O terreno</Label>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {([[true, "Já é do cliente (quitado)"], [false, "Vai ser comprado"]] as const).map(([valor, rotulo]) => (
-                  <Button key={rotulo} type="button" variant={terrenoProprio === valor ? "default" : "outline"} className="h-auto whitespace-normal py-2.5" onClick={() => setTerrenoProprio(valor)}>{rotulo}</Button>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {([["quitado", "Já é do cliente (quitado)"], ["loteadora", "Pagando à loteadora"], ["comprar", "Vai ser comprado"]] as const).map(([valor, rotulo]) => (
+                  <Button key={valor} type="button" variant={situacaoLote === valor ? "default" : "outline"} className="h-auto whitespace-normal py-2.5" onClick={() => setSituacaoLote(valor)}>{rotulo}</Button>
                 ))}
               </div>
             </div>
+            {situacaoLote === "loteadora" && field("Saldo devedor com a loteadora", saldoLote, setSaldoLote, { help: "Quanto falta para quitar o lote hoje (peça à loteadora), não o total das parcelas. O banco quita esse saldo; o restante do valor do lote conta como entrada." })}
             <div>
               <div className="flex items-center gap-1.5">
                 <Label>Preço do m² de casa pronta na região (opcional)</Label>
@@ -139,10 +140,11 @@ function PreAnalise() {
                   <dl className="mt-6 grid gap-3 text-sm">
                     <Linha rotulo="Financiamento do banco" valor={r.financiamento} />
                     <Linha rotulo="Entrada" valor={r.entrada} />
-                    {r.agioNaEntrada > 0 && <Linha rotulo="— terreno próprio" valor={r.agioNaEntrada} sub />}
+                    {r.agioNaEntrada > 0 && <Linha rotulo={situacaoLote === "quitado" ? "— terreno próprio" : "— terreno (parte já paga, ágio)"} valor={r.agioNaEntrada} sub />}
                     {r.fgtsNaEntrada > 0 && <Linha rotulo="— FGTS" valor={r.fgtsNaEntrada} sub />}
                     {r.dinheiroNaEntrada > 0 && <Linha rotulo="— dinheiro" valor={r.dinheiroNaEntrada} sub />}
-                    {r.terrenoNaOperacao > 0 && <Linha rotulo="Terreno pago ao vendedor na operação" valor={r.terrenoNaOperacao} />}
+                    {r.faltaEntrada > 0 && <Linha rotulo="— falta juntar" valor={r.faltaEntrada} sub destaque />}
+                    {r.terrenoNaOperacao > 0 && <Linha rotulo={situacaoLote === "loteadora" ? "Saldo do lote pago à loteadora na operação" : "Terreno pago ao vendedor na operação"} valor={r.terrenoNaOperacao} />}
                     <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-3">
                       <dt className="min-w-0 font-semibold">{sistema === "SAC" ? "Primeira prestação (depois diminui)" : "Prestação depois da obra"}</dt>
                       <dd className="whitespace-nowrap font-semibold">{BRL.format(r.prestacao)}</dd>
@@ -157,6 +159,11 @@ function PreAnalise() {
             <Card>
               <CardContent className="space-y-3 p-6 text-sm leading-relaxed">
                 <p><strong>O que limita:</strong> {MOTIVO[r.limitadoPor]}</p>
+                {r.faltaEntrada > 0 && (
+                  <p className="text-secondary">
+                    Falta {BRL.format(r.faltaEntrada)} de entrada para usar todo o financiamento. O banco financia até 80% do imóvel: o cliente precisa comprovar 20% em terreno, FGTS ou dinheiro. Com a entrada de hoje, o imóvel possível é de {BRL.format(r.imovelComEntradaAtual)} (financiamento de {BRL.format(r.financiamentoComEntradaAtual)}).
+                  </p>
+                )}
                 {r.limitadoPor !== "renda" && r.capacidade > r.financiamento && (
                   <p className="text-muted-foreground">Pela renda, o banco financiaria até {BRL.format(r.capacidade)}.</p>
                 )}
@@ -175,7 +182,8 @@ function PreAnalise() {
                       valorImovel: Math.round(r.valorImovel * 100) / 100,
                       fgts: Math.round(r.fgtsNaEntrada * 100) / 100,
                       terreno,
-                      lote: terrenoProprio ? "proprio" : "compra",
+                      lote: situacaoLote === "quitado" ? "proprio" : situacaoLote === "loteadora" ? "loteadora" : "compra",
+                      ...(situacaoLote === "loteadora" ? { saldo: r.saldoLote } : {}),
                       juros: Math.round(r.jurosEfetivos * 100) / 100,
                       prazoFin: r.prazo,
                       sistema,
@@ -197,9 +205,9 @@ function PreAnalise() {
   );
 }
 
-function Linha({ rotulo, valor, sub = false }: { rotulo: string; valor: number; sub?: boolean }) {
+function Linha({ rotulo, valor, sub = false, destaque = false }: { rotulo: string; valor: number; sub?: boolean; destaque?: boolean }) {
   return (
-    <div className={`flex items-baseline justify-between gap-3 ${sub ? "pl-3 text-muted-foreground" : ""}`}>
+    <div className={`flex items-baseline justify-between gap-3 ${sub ? "pl-3" : ""} ${destaque ? "font-medium text-secondary" : sub ? "text-muted-foreground" : ""}`}>
       <dt className="min-w-0">{rotulo}</dt>
       <dd className="whitespace-nowrap">{BRL.format(valor)}</dd>
     </div>

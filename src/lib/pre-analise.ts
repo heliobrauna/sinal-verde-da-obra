@@ -59,6 +59,9 @@ export function financiamentoPorParcela(parcela: number, taxaMensal: number, pra
   return taxaMensal > 0 ? disponivel * (1 - Math.pow(1 + taxaMensal, -n)) / taxaMensal : disponivel * n;
 }
 
+// Situação do lote: quitado (é todo ágio), pagando à loteadora (ágio = preço - saldo devedor) ou a comprar (sem ágio).
+export type SituacaoLote = "quitado" | "loteadora" | "comprar";
+
 export type PreAnaliseInput = {
   rendaFormal: number;
   rendaInformal: number;
@@ -67,7 +70,9 @@ export type PreAnaliseInput = {
   fgts: number;
   dinheiro: number;
   terreno: number;
-  terrenoProprio: boolean;
+  situacaoLote: SituacaoLote;
+  // Saldo devedor com a loteadora (só em "loteadora"): o que falta para quitar hoje.
+  saldoLote: number;
   sistema: SistemaAmortizacao;
   // Taxa nominal anual; null usa a taxa sugerida da faixa.
   jurosAnuais: number | null;
@@ -86,26 +91,33 @@ export function preAnalise(input: PreAnaliseInput) {
   const prazo = prazoMaximoPorIdade(input.idade);
   const parcelaMaxima = renda * COMPROMETIMENTO_RENDA;
   const capacidade = financiamentoPorParcela(parcelaMaxima, taxaMensal, prazo, input.sistema, input.seguroTarifaMensal);
-  // A entrada é formada pelo ágio do lote próprio, depois FGTS e dinheiro, como no simulador.
+  // A entrada é formada pelo ágio do lote, depois FGTS e dinheiro, como no simulador.
+  // Ágio = preço do lote - o que ainda falta pagar dele (o saldo é quitado pelo banco na assinatura).
   const terreno = Math.max(input.terreno, 0);
-  const agio = input.terrenoProprio ? terreno : 0;
+  const saldoLote = input.situacaoLote === "quitado" ? 0 : input.situacaoLote === "comprar" ? terreno : Math.min(Math.max(input.saldoLote, 0), terreno);
+  const agio = terreno - saldoLote;
   const fgts = Math.max(input.fgts, 0);
   const dinheiro = Math.max(input.dinheiro, 0);
   const recursosEntrada = agio + fgts + dinheiro;
-  // Com lote próprio o banco financia só a obra: financiamento = menor entre 80% do imóvel e imóvel - lote.
-  // O imóvel é limitado pela renda (financiamento ≤ capacidade), pela entrada (mínimo de 20%) e pelo teto da faixa.
+  // Com ágio o banco financia no máximo imóvel - ágio: financiamento = menor entre 80% do imóvel e imóvel - ágio.
+  // O imóvel é o que a renda permite (financiamento ≤ capacidade), até o teto da faixa. A entrada não
+  // reduz o financiamento: se faltar, a pré-análise mostra quanto falta e o imóvel possível com a entrada de hoje.
   const limites = {
     renda: Math.max(capacidade / COTA_FINANCIAMENTO, capacidade + agio),
-    entrada: recursosEntrada / (1 - COTA_FINANCIAMENTO),
     faixa: faixa.limiteImovel,
   };
-  const valorImovel = Math.max(0, Math.min(limites.renda, limites.entrada, limites.faixa));
-  const limitadoPor: keyof typeof limites = valorImovel === limites.faixa ? "faixa" : valorImovel === limites.renda ? "renda" : "entrada";
-  const financiamento = Math.max(0, Math.min(valorImovel * COTA_FINANCIAMENTO, valorImovel - agio));
+  const valorImovel = Math.max(0, Math.min(limites.renda, limites.faixa));
+  const limitadoPor: keyof typeof limites = valorImovel === limites.faixa ? "faixa" : "renda";
+  const financiarImovel = (valor: number) => Math.max(0, Math.min(valor * COTA_FINANCIAMENTO, valor - agio));
+  const financiamento = financiarImovel(valorImovel);
   const entrada = valorImovel - financiamento;
   const agioNaEntrada = Math.min(agio, entrada);
   const fgtsNaEntrada = Math.min(fgts, entrada - agioNaEntrada);
-  const dinheiroNaEntrada = entrada - agioNaEntrada - fgtsNaEntrada;
+  const dinheiroNaEntrada = Math.min(dinheiro, entrada - agioNaEntrada - fgtsNaEntrada);
+  const faltaEntrada = Math.max(entrada - agioNaEntrada - fgtsNaEntrada - dinheiroNaEntrada, 0);
+  // Com a entrada de hoje (20% do imóvel), o imóvel possível é 5 vezes os recursos, sem passar do limite da renda.
+  const imovelComEntradaAtual = faltaEntrada > 0 ? Math.min(valorImovel, recursosEntrada / (1 - COTA_FINANCIAMENTO)) : valorImovel;
+  const financiamentoComEntradaAtual = financiarImovel(imovelComEntradaAtual);
   // A prestação cresce em linha reta com a dívida; seguros e tarifa entram inteiros.
   const seguroTarifa = Math.max(input.seguroTarifaMensal, 0);
   const prestacao = financiamento > 0 && capacidade > 0 ? seguroTarifa + (parcelaMaxima - seguroTarifa) * financiamento / capacidade : 0;
@@ -115,12 +127,13 @@ export function preAnalise(input: PreAnaliseInput) {
   return {
     renda, faixa, jurosAnuais, jurosEfetivos, prazo, parcelaMaxima, capacidade,
     limites, limitadoPor, valorImovel, financiamento, entrada,
-    agioNaEntrada, fgtsNaEntrada, dinheiroNaEntrada,
-    // Lote que não é do cliente entra no valor do imóvel e é pago na operação.
-    terrenoNaOperacao: input.terrenoProprio ? 0 : terreno,
+    agioNaEntrada, fgtsNaEntrada, dinheiroNaEntrada, faltaEntrada, imovelComEntradaAtual, financiamentoComEntradaAtual,
+    // Saldo do lote (ou preço do lote a comprar) pago ao vendedor na operação.
+    saldoLote,
+    terrenoNaOperacao: saldoLote,
     prestacao, verbaObra, area,
     terrenoMaiorQueImovel: terreno > valorImovel,
-    // O banco quita o lote comprado até 30% do contrato; o restante precisa sair da entrada.
-    loteAcimaDoLimiteBanco: !input.terrenoProprio && terreno > valorImovel * LIMITE_LOTE_CONTRATO,
+    // O banco quita o saldo do lote até 30% do contrato; o restante precisa sair da entrada.
+    loteAcimaDoLimiteBanco: saldoLote > valorImovel * LIMITE_LOTE_CONTRATO,
   };
 }

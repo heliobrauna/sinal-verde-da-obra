@@ -4,7 +4,7 @@ import { faixaPorRenda, financiamentoPorParcela, jurosSugeridos, preAnalise, pra
 
 const base: PreAnaliseInput = {
   rendaFormal: 6000, rendaInformal: 0, idade: 30, cotistaFgts: false, fgts: 0, dinheiro: 1_000_000,
-  terreno: 0, terrenoProprio: false, sistema: "PRICE", jurosAnuais: null, seguroTarifaMensal: 100, precoM2Pronto: 0,
+  terreno: 0, situacaoLote: "comprar", saldoLote: 0, sistema: "PRICE", jurosAnuais: null, seguroTarifaMensal: 100, precoM2Pronto: 0,
 };
 
 describe("pré-análise pela renda", () => {
@@ -41,17 +41,34 @@ describe("pré-análise pela renda", () => {
     expect(r.dinheiroNaEntrada).toBeCloseTo(r.valorImovel * 0.2, 6);
   });
 
-  it("com pouca entrada, o imóvel fica em 5 vezes os recursos e a prestação cai", () => {
+  it("com pouca entrada, o financiamento continua o da renda e a falta de entrada aparece", () => {
+    const cheio = preAnalise(base);
     const r = preAnalise({ ...base, dinheiro: 20_000, fgts: 10_000 });
-    expect(r.limitadoPor).toBe("entrada");
-    expect(r.valorImovel).toBeCloseTo(150_000, 6);
+    expect(r.limitadoPor).toBe("renda");
+    expect(r.financiamento).toBeCloseTo(cheio.financiamento, 6);
     expect(r.fgtsNaEntrada).toBeCloseTo(10_000, 6);
     expect(r.dinheiroNaEntrada).toBeCloseTo(20_000, 6);
-    expect(r.prestacao).toBeLessThan(1800);
+    expect(r.faltaEntrada).toBeCloseTo(r.entrada - 30_000, 6);
+    expect(r.imovelComEntradaAtual).toBeCloseTo(150_000, 6);
+    expect(r.financiamentoComEntradaAtual).toBeCloseTo(120_000, 6);
+    // Zerar o FGTS não derruba o financiamento, só aumenta o que falta de entrada.
+    const semFgts = preAnalise({ ...base, dinheiro: 20_000 });
+    expect(semFgts.financiamento).toBeCloseTo(cheio.financiamento, 6);
+    expect(semFgts.faltaEntrada).toBeCloseTo(r.faltaEntrada + 10_000, 6);
+  });
+
+  it("lote pagando à loteadora: ágio = preço - saldo e o saldo é pago na operação", () => {
+    const r = preAnalise({ ...base, dinheiro: 0, terreno: 100_000, situacaoLote: "loteadora", saldoLote: 30_000 });
+    expect(r.saldoLote).toBe(30_000);
+    expect(r.terrenoNaOperacao).toBe(30_000);
+    expect(r.agioNaEntrada).toBeCloseTo(Math.min(70_000, r.entrada), 6);
+    const comprar = preAnalise({ ...base, dinheiro: 0, terreno: 100_000 });
+    expect(comprar.agioNaEntrada).toBe(0);
+    expect(comprar.terrenoNaOperacao).toBe(100_000);
   });
 
   it("lote próprio forma a entrada e o banco financia só a obra", () => {
-    const r = preAnalise({ ...base, rendaFormal: 15000, dinheiro: 0, terreno: 200_000, terrenoProprio: true, precoM2Pronto: 4000 });
+    const r = preAnalise({ ...base, rendaFormal: 15000, dinheiro: 0, terreno: 200_000, situacaoLote: "quitado", precoM2Pronto: 4000 });
     expect(r.limitadoPor).toBe("renda");
     expect(r.valorImovel).toBeCloseTo(r.capacidade + 200_000, 6);
     expect(r.financiamento).toBeCloseTo(r.capacidade, 6);

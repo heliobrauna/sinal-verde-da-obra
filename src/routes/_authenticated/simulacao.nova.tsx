@@ -266,7 +266,8 @@ type BuscaNova = {
   valorImovel?: number;
   fgts?: number;
   terreno?: number;
-  lote?: "proprio" | "compra";
+  lote?: "proprio" | "loteadora" | "compra";
+  saldo?: number;
   juros?: number;
   prazoFin?: number;
   sistema?: SistemaAmortizacao;
@@ -280,11 +281,11 @@ function lerBusca(search: Record<string, unknown>): BuscaNova {
   };
   const busca: BuscaNova = {};
   if (typeof search["editar"] === "string") busca.editar = search["editar"];
-  for (const chave of ["renda", "credito", "valorImovel", "fgts", "terreno", "juros", "prazoFin", "seguro"] as const) {
+  for (const chave of ["renda", "credito", "valorImovel", "fgts", "terreno", "saldo", "juros", "prazoFin", "seguro"] as const) {
     const valor = numero(chave);
     if (valor !== undefined) busca[chave] = valor;
   }
-  if (search["lote"] === "proprio" || search["lote"] === "compra") busca.lote = search["lote"];
+  if (search["lote"] === "proprio" || search["lote"] === "loteadora" || search["lote"] === "compra") busca.lote = search["lote"];
   if (search["sistema"] === "PRICE" || search["sistema"] === "SAC") busca.sistema = search["sistema"];
   return busca;
 }
@@ -454,7 +455,10 @@ function Wizard() {
     if (busca.valorImovel !== undefined) setValorImovel(busca.valorImovel);
     if (busca.fgts !== undefined) setFgtsUtilizado(busca.fgts);
     if (busca.terreno !== undefined) setTerreno(busca.terreno);
+    // Lote quitado = CTP; pagando à loteadora ou a comprar = ATC com o saldo a quitar (a comprar: o preço todo).
     if (busca.lote) setModalidadeTerreno(busca.lote === "proprio" ? "ctp" : "atc");
+    if (busca.lote === "loteadora") setSaldoLote(busca.saldo ?? 0);
+    if (busca.lote === "compra" && busca.terreno !== undefined) setSaldoLote(busca.terreno);
     if (busca.juros !== undefined) setJurosAnuais(busca.juros);
     if (busca.prazoFin) setPrazoFinanciamento(busca.prazoFin);
     if (busca.sistema) setSistemaAmortizacao(busca.sistema);
