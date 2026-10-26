@@ -1,4 +1,4 @@
-import { LIMITE_LOTE_CONTRATO, monthlyToAnnualRate, type SistemaAmortizacao } from "./finance";
+import { annualToMonthlyRate, LIMITE_LOTE_CONTRATO, monthlyToAnnualRate, type SistemaAmortizacao } from "./finance";
 
 // Pré-análise pela renda: quanto o cliente consegue financiar antes de abrir o simulador da Caixa.
 // Tudo aqui é estimativa de planejamento; a aprovação depende da análise de crédito do banco.
@@ -19,18 +19,20 @@ export type Faixa = {
   id: "1" | "2" | "3" | "4" | "sbpe";
   rotulo: string;
   rendaAte: number;
-  // Taxa nominal anual de referência (teto da faixa, para não prometer menos do que o banco cobra).
+  // Taxa nominal anual de referência: teto da faixa para quem não é cotista (Sul, Sudeste e Centro-Oeste),
+  // para não prometer menos do que o banco cobra. Cotista com 3+ anos de FGTS tem -0,5 ponto nas faixas 1 a 3.
   juros: number;
   limiteImovel: number;
   observacao: string;
 };
 
-// Minha Casa, Minha Vida com os limites aprovados pelo Conselho Curador do FGTS em 24/03/2026.
+// Minha Casa, Minha Vida com os limites aprovados pelo Conselho Curador do FGTS em 24/03/2026 e as taxas em vigor
+// desde 22/04/2026 (faixa 3: 8,16% nominal = 8,47% efetiva no simulador da Caixa; 7,66% para cotista).
 // Acima da faixa 4, crédito de mercado (SBPE) com taxa de balcão estimada.
 export const FAIXAS: Faixa[] = [
-  { id: "1", rotulo: "MCMV Faixa 1", rendaAte: 3200, juros: 4.5, limiteImovel: 270_000, observacao: "Pode haver subsídio, que aumenta o valor possível; o limite do imóvel varia por município." },
-  { id: "2", rotulo: "MCMV Faixa 2", rendaAte: 5000, juros: 6.5, limiteImovel: 270_000, observacao: "Pode haver subsídio, que aumenta o valor possível; o limite do imóvel varia por município." },
-  { id: "3", rotulo: "MCMV Faixa 3", rendaAte: 9600, juros: 7.66, limiteImovel: 400_000, observacao: "Sem subsídio." },
+  { id: "1", rotulo: "MCMV Faixa 1", rendaAte: 3200, juros: 5.25, limiteImovel: 270_000, observacao: "Pode haver subsídio, que aumenta o valor possível; o limite do imóvel varia por município." },
+  { id: "2", rotulo: "MCMV Faixa 2", rendaAte: 5000, juros: 7, limiteImovel: 270_000, observacao: "Pode haver subsídio, que aumenta o valor possível; o limite do imóvel varia por município." },
+  { id: "3", rotulo: "MCMV Faixa 3", rendaAte: 9600, juros: 8.16, limiteImovel: 400_000, observacao: "Sem subsídio." },
   { id: "4", rotulo: "MCMV Faixa 4", rendaAte: 13000, juros: 10, limiteImovel: 600_000, observacao: "Sem subsídio e sem desconto de cotista do FGTS." },
   { id: "sbpe", rotulo: "Crédito de mercado (SBPE)", rendaAte: Infinity, juros: 11.5, limiteImovel: TETO_SFH, observacao: "Taxa de balcão estimada; varia com o relacionamento com o banco." },
 ];
@@ -62,6 +64,11 @@ export function financiamentoPorParcela(parcela: number, taxaMensal: number, pra
 // Situação do lote: quitado (é todo ágio), pagando à loteadora (ágio = preço - saldo devedor) ou a comprar (sem ágio).
 export type SituacaoLote = "quitado" | "loteadora" | "comprar";
 
+// Efetiva anual equivalente a uma taxa nominal anual (capitalização mensal).
+export function efetivaDaNominal(nominalAnual: number) {
+  return monthlyToAnnualRate(nominalAnual / 12);
+}
+
 export type PreAnaliseInput = {
   rendaFormal: number;
   rendaInformal: number;
@@ -74,8 +81,8 @@ export type PreAnaliseInput = {
   // Saldo devedor com a loteadora (só em "loteadora"): o que falta para quitar hoje.
   saldoLote: number;
   sistema: SistemaAmortizacao;
-  // Taxa nominal anual; null usa a taxa sugerida da faixa.
-  jurosAnuais: number | null;
+  // Taxa efetiva anual, como no simulador da Caixa; null usa a taxa sugerida da faixa.
+  jurosEfetivos: number | null;
   seguroTarifaMensal: number;
   // Preço médio do m² de casa pronta na região (terreno + construção), para traduzir o valor em tamanho.
   precoM2Pronto: number;
@@ -84,10 +91,10 @@ export type PreAnaliseInput = {
 export function preAnalise(input: PreAnaliseInput) {
   const renda = Math.max(input.rendaFormal, 0) + Math.max(input.rendaInformal, 0);
   const faixa = faixaPorRenda(renda);
-  const jurosAnuais = input.jurosAnuais ?? jurosSugeridos(faixa, input.cotistaFgts);
-  // As taxas do programa são nominais: mensal = anual / 12. O simulador usa a efetiva equivalente.
-  const taxaMensal = jurosAnuais / 12 / 100;
-  const jurosEfetivos = monthlyToAnnualRate(jurosAnuais / 12);
+  // As taxas do programa são nominais (mensal = anual / 12); a tela e o simulador da Caixa usam a efetiva equivalente.
+  const jurosEfetivos = input.jurosEfetivos ?? efetivaDaNominal(jurosSugeridos(faixa, input.cotistaFgts));
+  const taxaMensal = annualToMonthlyRate(jurosEfetivos) / 100;
+  const jurosAnuais = taxaMensal * 12 * 100;
   const prazo = prazoMaximoPorIdade(input.idade);
   const parcelaMaxima = renda * COMPROMETIMENTO_RENDA;
   const capacidade = financiamentoPorParcela(parcelaMaxima, taxaMensal, prazo, input.sistema, input.seguroTarifaMensal);

@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BRL, NUMBER, type SistemaAmortizacao } from "@/lib/finance";
-import { COMPROMETIMENTO_RENDA, jurosSugeridos, faixaPorRenda, preAnalise, type SituacaoLote } from "@/lib/pre-analise";
+import { COMPROMETIMENTO_RENDA, efetivaDaNominal, jurosSugeridos, faixaPorRenda, preAnalise, type SituacaoLote } from "@/lib/pre-analise";
 
 export const Route = createFileRoute("/_authenticated/pre-analise")({
   head: () => ({
@@ -45,10 +45,10 @@ function PreAnalise() {
   const [jurosManual, setJurosManual] = useState<number | null>(null);
   const [seguroTarifa, setSeguroTarifa] = useState(100);
   const r = useMemo(
-    () => preAnalise({ rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, situacaoLote, saldoLote, sistema, jurosAnuais: jurosManual, seguroTarifaMensal: seguroTarifa, precoM2Pronto }),
+    () => preAnalise({ rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, situacaoLote, saldoLote, sistema, jurosEfetivos: jurosManual, seguroTarifaMensal: seguroTarifa, precoM2Pronto }),
     [rendaFormal, rendaInformal, idade, cotistaFgts, fgts, dinheiro, terreno, situacaoLote, saldoLote, sistema, jurosManual, seguroTarifa, precoM2Pronto],
   );
-  const jurosFaixa = jurosSugeridos(faixaPorRenda(rendaFormal + rendaInformal), cotistaFgts);
+  const jurosFaixa = efetivaDaNominal(jurosSugeridos(faixaPorRenda(rendaFormal + rendaInformal), cotistaFgts));
   const pronto = r.renda > 0 && r.prazo > 0 && r.valorImovel > 0;
   const field = (label: string, value: number, set: (n: number) => void, opts: { monetary?: boolean; decimals?: number; help?: string } = {}) => (
     <div>
@@ -111,10 +111,10 @@ function PreAnalise() {
               </select>
             </div>
             <div>
-              <Label>Taxa de juros nominal anual (%)</Label>
+              <Label>Taxa de juros efetiva anual (%)</Label>
               <NumericInput className="mt-2 h-11" value={jurosManual ?? jurosFaixa} decimals={2} onValueChange={setJurosManual} />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                {jurosManual === null ? `Sugerida para ${r.faixa.rotulo}.` : <button type="button" className="underline" onClick={() => setJurosManual(null)}>Usar a taxa da faixa ({NUMBER.format(jurosFaixa)}%)</button>}
+                {jurosManual === null ? `Sugerida para ${r.faixa.rotulo} (${NUMBER.format(r.jurosAnuais)}% nominal). Confira no simulador da Caixa.` : <button type="button" className="underline" onClick={() => setJurosManual(null)}>Usar a taxa da faixa ({NUMBER.format(jurosFaixa)}%)</button>}
               </p>
             </div>
             {field("Seguros e tarifa por mês", seguroTarifa, setSeguroTarifa, { help: "Estimativa; o simulador da Caixa mostra o valor exato." })}
@@ -125,7 +125,7 @@ function PreAnalise() {
             <CardContent className="p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{r.faixa.rotulo}</span>
-                <span className="text-xs text-muted-foreground">Juros {NUMBER.format(r.jurosAnuais)}% a.a. ({NUMBER.format(r.jurosEfetivos)}% efetivos) · {r.prazo} meses</span>
+                <span className="text-xs text-muted-foreground">Juros {NUMBER.format(r.jurosEfetivos)}% a.a. efetivos ({NUMBER.format(r.jurosAnuais)}% nominais) · {r.prazo} meses</span>
               </div>
               {!r.renda ? (
                 <p className="mt-6 text-muted-foreground">Informe a renda da família para ver a estimativa.</p>

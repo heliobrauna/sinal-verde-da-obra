@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { annualToMonthlyRate, parcelasAmortizacao } from "./finance";
-import { faixaPorRenda, financiamentoPorParcela, jurosSugeridos, preAnalise, prazoMaximoPorIdade, type PreAnaliseInput } from "./pre-analise";
+import { efetivaDaNominal, faixaPorRenda, financiamentoPorParcela, jurosSugeridos, preAnalise, prazoMaximoPorIdade, type PreAnaliseInput } from "./pre-analise";
 
 const base: PreAnaliseInput = {
   rendaFormal: 6000, rendaInformal: 0, idade: 30, cotistaFgts: false, fgts: 0, dinheiro: 1_000_000,
-  terreno: 0, situacaoLote: "comprar", saldoLote: 0, sistema: "PRICE", jurosAnuais: null, seguroTarifaMensal: 100, precoM2Pronto: 0,
+  terreno: 0, situacaoLote: "comprar", saldoLote: 0, sistema: "PRICE", jurosEfetivos: null, seguroTarifaMensal: 100, precoM2Pronto: 0,
 };
 
 describe("pré-análise pela renda", () => {
@@ -14,8 +14,17 @@ describe("pré-análise pela renda", () => {
     expect(faixaPorRenda(9600).id).toBe("3");
     expect(faixaPorRenda(13000).id).toBe("4");
     expect(faixaPorRenda(13000.01).id).toBe("sbpe");
-    expect(jurosSugeridos(faixaPorRenda(8000), true)).toBeCloseTo(7.16);
+    expect(jurosSugeridos(faixaPorRenda(8000), false)).toBe(8.16);
+    expect(jurosSugeridos(faixaPorRenda(8000), true)).toBeCloseTo(7.66);
+    expect(jurosSugeridos(faixaPorRenda(4000), false)).toBe(7);
     expect(jurosSugeridos(faixaPorRenda(12000), true)).toBe(10);
+  });
+
+  it("faixa 3 sem cotista bate com a efetiva do simulador da Caixa (8,47%)", () => {
+    expect(efetivaDaNominal(8.16)).toBeCloseTo(8.47, 2);
+    const r = preAnalise({ ...base, rendaFormal: 8000 });
+    expect(r.jurosEfetivos).toBeCloseTo(8.47, 2);
+    expect(r.jurosAnuais).toBeCloseTo(8.16, 6);
   });
 
   it("limita o prazo pela idade (até 80 anos e 6 meses)", () => {
@@ -80,7 +89,7 @@ describe("pré-análise pela renda", () => {
     const r = preAnalise({ ...base, rendaFormal: 3000 });
     expect(r.faixa.id).toBe("1");
     expect(r.valorImovel).toBeLessThanOrEqual(270_000);
-    const alta = preAnalise({ ...base, rendaFormal: 9000, rendaInformal: 600, jurosAnuais: 1 });
+    const alta = preAnalise({ ...base, rendaFormal: 9000, rendaInformal: 600, jurosEfetivos: 1 });
     expect(alta.limitadoPor).toBe("faixa");
     expect(alta.valorImovel).toBe(400_000);
   });
