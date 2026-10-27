@@ -279,20 +279,15 @@ function calcular(input: SimulationInput) {
   const fgtsUtilizado = input.objetivo === "vender" ? 0 : Math.max(input.fgtsUtilizado, 0);
   const fgtsNaEntrada = Math.min(fgtsUtilizado, entradaExigida - agioNaEntrada);
   const dinheiroEntrada = entradaExigida - agioNaEntrada - fgtsNaEntrada;
-  // O banco quita o saldo do lote até 30% do valor do contrato (aceito sem laudo do lote).
-  const limiteFinanciavelLote = valorOperacao * LIMITE_LOTE_CONTRATO;
-  const orcamentoObraContrato = Math.max(valorOperacao - input.terreno, 0);
-  const quitacaoMaximaLote = Math.min(credito, saldoDevedor, limiteFinanciavelLote);
-  // O banco financia até 80% de cada parte: a obra não recebe mais que 80% do orçamento dela. Para usar todo o
-  // financiamento, o banco precisa pagar no lote pelo menos o que passa de 80% da obra.
-  const quitacaoMinimaLote = Math.min(Math.max(credito - orcamentoObraContrato * PERCENTUAL_FINANCIADO_PARTE, 0), quitacaoMaximaLote);
   // Na aquisição de terreno e construção o FGTS pode pagar o lote ao vendedor na assinatura (Manual FGTS
-  // Moradia Própria, 4.2.3.1 e 8.5.2.4). É o melhor uso: a dívida começa menor, os juros de obra caem e o lote
-  // fica quitado com o vendedor na assinatura. Vai ao lote até onde não tira financiamento da obra (com o
-  // financiamento no máximo, só os 20% do lote que o banco não paga); o que sobra é liberado nas medições.
-  const fgtsNoLote = Math.min(fgtsNaEntrada, Math.max(saldoDevedor - quitacaoMinimaLote, 0));
-  const quitacaoLote = Math.min(saldoDevedor - fgtsNoLote, quitacaoMaximaLote);
+  // Moradia Própria, 4.2.3.1 e 8.5.2.4). É o melhor uso: o banco paga menos lote, a dívida começa menor e os
+  // juros de obra caem; o dinheiro do banco que sobra vai para a obra. O FGTS que sobra é liberado nas medições.
+  const fgtsNoLote = Math.min(fgtsNaEntrada, saldoDevedor);
+  // O banco quita o restante do saldo do lote até 30% do valor do contrato (aceito sem laudo do lote).
+  const limiteFinanciavelLote = valorOperacao * LIMITE_LOTE_CONTRATO;
+  const quitacaoLote = Math.min(credito, saldoDevedor - fgtsNoLote, limiteFinanciavelLote);
   const saldoLoteNaoCoberto = Math.max(saldoDevedor - fgtsNoLote - quitacaoLote, 0);
+  const orcamentoObraContrato = Math.max(valorOperacao - input.terreno, 0);
   // Quando o ágio supera a entrada, o banco não libera para a obra mais do que o orçamento contratado.
   const financiamentoDisponivelObra = Math.max(credito - quitacaoLote, 0);
   const financiamentoConstrucao = Math.min(financiamentoDisponivelObra, orcamentoObraContrato);

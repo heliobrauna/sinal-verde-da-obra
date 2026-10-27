@@ -45,24 +45,13 @@ describe("projeção financeira", () => {
   });
 
   it("FGTS paga o lote antes do banco: dívida menor na assinatura e menos juros de obra", () => {
-    // Financiamento abaixo do máximo (limitado pela renda): o banco só precisa pagar R$ 110 mil do lote.
-    const sem = calculate({ ...input, objetivo: "morar", lucro: 0, credito: 350000, saldoDevedor: 150000, fgtsUtilizado: 0 });
-    const com = calculate({ ...input, objetivo: "morar", lucro: 0, credito: 350000, saldoDevedor: 150000, fgtsUtilizado: 30000 });
+    const sem = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 150000, fgtsUtilizado: 0 });
+    const com = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 150000, fgtsUtilizado: 30000 });
     expect(com.fgtsNoLote).toBe(30000);
     expect(com.quitacaoLote).toBe(sem.quitacaoLote - 30000);
     expect(com.financiamentoConstrucao).toBe(sem.financiamentoConstrucao + 30000);
     expect(com.recursosUtilizaveis).toBeCloseTo(sem.recursosUtilizaveis, 6);
     expect(com.jurosObra).toBeLessThan(sem.jurosObra);
-    expect(com.financiamentoConstrucao).toBeLessThanOrEqual(300000 * 0.8);
-  });
-
-  it("com o financiamento no máximo, o FGTS paga só os 20% do lote que o banco não paga", () => {
-    // Lote de R$ 100 mil a comprar, obra de R$ 400 mil, financiamento de 80% (R$ 400 mil), FGTS de R$ 50 mil.
-    const r = calculate({ ...input, objetivo: "morar", lucro: 0, terreno: 100000, origemTerreno: "compra", credito: 400000, fgtsUtilizado: 50000 });
-    expect(r.fgtsNoLote).toBeCloseTo(20000, 6);
-    expect(r.quitacaoLote).toBeCloseTo(80000, 6);
-    expect(r.financiamentoConstrucao).toBeCloseTo(320000, 6);
-    expect(r.saldoLoteNaoCoberto).toBe(0);
   });
 
   it("não libera para a obra mais que o orçamento quando o ágio supera a entrada", () => {

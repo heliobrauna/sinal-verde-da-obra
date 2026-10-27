@@ -124,12 +124,8 @@ export function preAnalise(input: PreAnaliseInput) {
   const faltaEntrada = Math.max(entrada - agioNaEntrada - fgtsNaEntrada - dinheiroNaEntrada, 0);
   // O FGTS paga primeiro o saldo do lote ao vendedor na assinatura (menos dívida desde o início, menos juros de obra);
   // o banco quita o restante até 30% do contrato e o FGTS que sobra é liberado nas medições da obra.
-  // O banco financia até 80% de cada parte: com o financiamento no máximo ele paga 80% do lote, e o FGTS os 20%.
-  // Com financiamento menor (renda), o FGTS cobre mais do lote sem tirar dinheiro da obra.
-  const loteBancoMaximo = Math.min(saldoLote, valorImovel * LIMITE_LOTE_CONTRATO, financiamento);
-  const loteBancoMinimo = Math.min(Math.max(financiamento - (valorImovel - terreno) * COTA_FINANCIAMENTO, 0), loteBancoMaximo);
-  const fgtsNoLote = Math.min(fgtsNaEntrada, Math.max(saldoLote - loteBancoMinimo, 0));
-  const loteBanco = Math.min(saldoLote - fgtsNoLote, loteBancoMaximo);
+  const fgtsNoLote = Math.min(fgtsNaEntrada, saldoLote);
+  const loteBanco = Math.min(saldoLote - fgtsNoLote, valorImovel * LIMITE_LOTE_CONTRATO, financiamento);
   // Com a entrada de hoje (20% do imóvel), o imóvel possível é 5 vezes os recursos, sem passar do limite da renda.
   const imovelComEntradaAtual = faltaEntrada > 0 ? Math.min(valorImovel, recursosEntrada / (1 - COTA_FINANCIAMENTO)) : valorImovel;
   const financiamentoComEntradaAtual = financiarImovel(imovelComEntradaAtual);

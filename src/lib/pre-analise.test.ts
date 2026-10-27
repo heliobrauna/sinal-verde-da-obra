@@ -73,10 +73,6 @@ describe("pré-análise pela renda", () => {
     expect(r.agioNaEntrada).toBeCloseTo(Math.min(70_000, r.entrada), 6);
     const comprar = preAnalise({ ...base, dinheiro: 0, terreno: 100_000 });
     expect(comprar.agioNaEntrada).toBe(0);
-    // Financiamento no máximo (80%): o FGTS paga os 20% do lote e o banco os 80%.
-    const comFgts = preAnalise({ ...base, dinheiro: 0, fgts: 30_000, terreno: 48_000 });
-    expect(comFgts.fgtsNoLote).toBeCloseTo(9_600, 6);
-    expect(comFgts.loteBanco).toBeCloseTo(38_400, 6);
     expect(comprar.terrenoNaOperacao).toBe(100_000);
   });
 
