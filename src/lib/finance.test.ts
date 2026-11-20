@@ -111,11 +111,12 @@ describe("projeção financeira", () => {
     expect(estimatedExpenses(0, 0, 0, 0, 0, 0, 100).find((item) => item.id === "alvara")?.valor).toBe(252);
   });
 
-  it("exige caixa de 10% da obra para começar; o FGTS da entrada só sai com as medições", () => {
+  it("exige caixa para a obra do 1º mês (1ª liberação da PCI, 9%); o FGTS da entrada só sai com as medições", () => {
     // Lote quitado de R$ 150 mil cobre R$ 100 mil da entrada; nada a comprovar em dinheiro.
     const quitado = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 0, terreno: 150000 });
     expect(quitado.dinheiroEntrada).toBe(0);
-    expect(quitado.capitalGiro).toBeCloseTo((quitado.custoConstrucao + quitado.extrasTotal) * 0.1);
+    expect(quitado.primeiraEtapaPercentual).toBe(input.liberacoes[0]!.percentual);
+    expect(quitado.capitalGiro).toBeCloseTo((quitado.custoConstrucao + quitado.extrasTotal) * quitado.primeiraEtapaPercentual / 100);
     // Até a 1ª medição: despesas iniciais, cartório e taxas do contrato (mais o lote ao vendedor) e a 1ª etapa da obra.
     expect(quitado.dinheiroParaComecar).toBeCloseTo(quitado.desembolsoAntesContrato + quitado.despesasAssinatura + quitado.saldoLoteNaoCoberto + quitado.primeiraEtapa);
     expect(quitado.primeiraEtapa).toBeCloseTo((quitado.custoConstrucao + quitado.extrasTotal) * quitado.primeiraEtapaPercentual / 100);
@@ -124,7 +125,7 @@ describe("projeção financeira", () => {
     const misto = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 100000, terreno: 150000, fgtsUtilizado: 20000, areaPlanejada: 200 });
     expect(misto.fgtsNaEntrada).toBe(20000);
     expect(misto.dinheiroEntrada).toBe(30000);
-    expect(misto.capitalGiro).toBeCloseTo((misto.custoConstrucao + misto.extrasTotal) * 0.1 - 30000);
+    expect(misto.capitalGiro).toBeCloseTo((misto.custoConstrucao + misto.extrasTotal) * misto.primeiraEtapaPercentual / 100 - 30000);
   });
 
   it("não usa FGTS em obra para vender", () => {
@@ -138,9 +139,9 @@ describe("projeção financeira", () => {
 
   it("data o capital do investidor e divide o lucro em cascata", () => {
     const result = calculate(input);
-    // Patrimônio do lote + despesas pré-obra + 10% da obra + juros de obra.
-    expect(result.capitalAportadoInvestidor).toBeCloseTo(100000 + 10000 + 24000 + result.jurosObra);
-    expect(result.capitalGiro).toBe(24000);
+    // Patrimônio do lote + despesas pré-obra + obra do 1º mês (9% da PCI) + juros de obra.
+    expect(result.capitalAportadoInvestidor).toBeCloseTo(100000 + 10000 + 21600 + result.jurosObra);
+    expect(result.capitalGiro).toBeCloseTo(21600);
     const realista = result.cenarios[0]!;
     expect(realista.lucroInvestidor + realista.lucroConstrutor).toBeCloseTo(realista.saldo);
     expect(realista.preferencialPago).toBeCloseTo(Math.min(realista.saldo, result.retornoPreferencial));
@@ -220,7 +221,7 @@ describe("projeção financeira", () => {
     const comprova = calculate(compra);
     expect(comprova.dinheiroEntrada).toBe(100000);
     expect(comprova.aportesInvestidor.some((f) => f.rotulo.startsWith("Entrada"))).toBe(false);
-    expect(comprova.capitalGiro).toBeCloseTo((comprova.custoConstrucao + comprova.extrasTotal) * 0.1);
+    expect(comprova.capitalGiro).toBeCloseTo((comprova.custoConstrucao + comprova.extrasTotal) * comprova.primeiraEtapaPercentual / 100);
     const deposita = calculate({ ...compra, entradaDepositada: true });
     expect(deposita.capitalGiro).toBe(0);
     expect(deposita.dinheiroParaComecar).toBeGreaterThan(comprova.dinheiroParaComecar);

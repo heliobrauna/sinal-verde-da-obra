@@ -391,14 +391,14 @@ function calcular(input: SimulationInput) {
   const irGanhoLote = 0;
   const patrimonioTerreno = loteProprio ? agioLote : 0;
   // O banco e o FGTS só liberam após cada medição (Manual FGTS Moradia Própria, 8.5.2): para começar a obra
-  // é preciso dinheiro para executar a 1ª etapa do cronograma físico-financeiro (10% sem cronograma). Para morar,
+  // é preciso dinheiro para executar a obra do 1º mês, pelo % da 1ª liberação da PCI (10% sem liberações). Para morar,
   // a entrada em dinheiro que sobra depois de completar o lote paga essa etapa primeiro; o que faltar é caixa que
   // volta com a medição. Na venda, a entrada é só comprovação de recursos, a menos que a agência exija o depósito.
   const entradaDepositada = vender && input.entradaDepositada === true;
   const dinheiroEntradaNaObra = Math.max(dinheiroEntrada - saldoLoteNaoCoberto, 0);
   const entradaComoCaixa = !vender || entradaDepositada ? dinheiroEntradaNaObra : 0;
-  const primeiraEtapaNome = input.stages[0]?.nome ?? "1ª etapa";
-  const primeiraEtapaPercentual = input.stages[0] ? Math.max(input.stages[0].percentual, 0) : 10;
+  const primeiraEtapaNome = "Obra do 1º mês";
+  const primeiraEtapaPercentual = input.liberacoes[0] ? Math.max(input.liberacoes[0].percentual, 0) : 10;
   const primeiraEtapa = (custoConstrucao + extrasTotal) * primeiraEtapaPercentual / 100;
   const capitalGiro = Math.max(primeiraEtapa - entradaComoCaixa, 0);
   // O que se paga na assinatura: cartório e taxas do contrato e o lote que o vendedor ainda precisa receber.

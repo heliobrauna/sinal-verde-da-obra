@@ -398,7 +398,7 @@ function Result() {
                   ...(r.inicioObra !== undefined
                     ? ([
                         ["Na assinatura (cartório, taxas do contrato e lote ao vendedor)", r.pagamentoAssinatura],
-                        [`${item.objetivo === "vender" ? "Caixa para iniciar a obra" : "Para executar"}: ${r.primeiraEtapaNome ?? "1ª etapa"} (${NUMBER.format(r.primeiraEtapaPercentual ?? 0)}% do cronograma)`, r.inicioObra],
+                        [`${item.objetivo === "vender" ? "Caixa para iniciar a obra" : "Para executar"}: ${r.primeiraEtapaNome ?? "1ª etapa"} (${NUMBER.format(r.primeiraEtapaPercentual ?? 0)}% da 1ª liberação da PCI)`, r.inicioObra],
                       ] as Row[])
                     : ([
                         ["Na assinatura (entrada em dinheiro, taxas e cartório)", r.desembolsoAssinatura],
