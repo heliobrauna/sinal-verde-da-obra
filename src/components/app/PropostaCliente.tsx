@@ -14,7 +14,8 @@ export type PropostaData = {
   // Itens além da casa que a obra entrega (muro, portão, piscina...).
   itensInclusos?: string[];
   renda: number;
-  custos: { terreno: number; construcao: number; documentos: number; juros: number; servicos?: { rotulo: string; valor: number }[] };
+  // documentos = todas as taxas; taxasObra = a parte paga durante e no fim da obra, com a verba da obra.
+  custos: { terreno: number; construcao: number; documentos: number; taxasObra?: number; juros: number; servicos?: { rotulo: string; valor: number }[] };
   pagamento: { banco: number; fgts: number; terreno: number; bolso: number };
   bolsoDetalhe: { entrada: number; terreno: number; taxas: number; juros: number; area: number };
   folgaBanco: number;
@@ -22,6 +23,14 @@ export type PropostaData = {
   antesContrato: number;
   assinatura: number;
   caixaInicio: number;
+  // Entrada em dinheiro a comprovar no contrato (não é paga ao banco).
+  entradaComprovar?: number;
+  // 1ª etapa do cronograma, executada antes da 1ª medição: parte com a entrada, parte com caixa que volta.
+  primeiraEtapa?: number;
+  primeiraEtapaNome?: string;
+  primeiraEtapaPercentual?: number;
+  entradaNaPrimeiraEtapa?: number;
+  entradaDuranteObra?: number;
   mesesObra: number;
   encargoInicial: number;
   encargoFinal: number;
@@ -96,13 +105,13 @@ function CasaQueSeEnche({ pagamento }: { pagamento: PropostaData["pagamento"] })
 export const PARTES_BOLSO = [
   { key: "entrada", rotulo: "Entrada em dinheiro (vai para a obra)" },
   { key: "terreno", rotulo: "Complemento do terreno" },
-  { key: "taxas", rotulo: "Documentos e taxas" },
+  { key: "taxas", rotulo: "Documentos e taxas do contrato" },
   { key: "juros", rotulo: "Juros durante a obra" },
   { key: "area", rotulo: "A mais para a casa planejada" },
 ] as const;
 
 // A entrada faz parte do valor do imóvel e é aplicada na obra; taxas e juros são pagos por fora.
-function DetalheBolso({ detalhe }: { detalhe: PropostaData["bolsoDetalhe"] }) {
+function DetalheBolso({ detalhe, taxasObra }: { detalhe: PropostaData["bolsoDetalhe"]; taxasObra: number }) {
   const partes = PARTES_BOLSO.filter((parte) => detalhe[parte.key] > 0.005);
   if (partes.length < 2) return null;
   return (
@@ -116,6 +125,7 @@ function DetalheBolso({ detalhe }: { detalhe: PropostaData["bolsoDetalhe"] }) {
           </li>
         ))}
       </ul>
+      {taxasObra > 0.005 && <p className="mt-2 text-zinc-500">As taxas da obra e a averbação ({BRL.format(taxasObra)}) são pagas com a verba da obra.</p>}
     </div>
   );
 }
@@ -163,22 +173,52 @@ export function Semaforo({ status, titulo, texto }: { status: "verde" | "amarelo
 }
 
 function LinhaDoTempo({ data }: { data: PropostaData }) {
-  const passos = [
-    { icone: FileText, titulo: "Antes do contrato", valor: data.antesContrato, texto: "Projetos, alvará e certidões" },
-    { icone: PenLine, titulo: "Na assinatura", valor: data.assinatura, texto: "Entrada em dinheiro, taxas e cartório" },
-    {
-      icone: HardHat,
-      titulo: `Obra · ${data.mesesObra} meses`,
-      valor: data.caixaInicio,
-      texto: `${data.caixaInicio > 0.005 ? "Caixa para começar (volta com as medições). " : ""}Parcela de obra de ${BRL.format(data.encargoInicial)} a ${BRL.format(data.encargoFinal)} por mês`,
-    },
+  const comEtapa = Boolean(data.primeiraEtapaNome);
+  const parcelaObra = `Parcela de obra de ${BRL.format(data.encargoInicial)} a ${BRL.format(data.encargoFinal)} por mês`;
+  const partesEtapa = [
+    (data.entradaNaPrimeiraEtapa ?? 0) > 0.005 ? `${BRL.format(data.entradaNaPrimeiraEtapa ?? 0)} da sua entrada` : "",
+    data.caixaInicio > 0.005 ? `${BRL.format(data.caixaInicio)} de caixa que volta com a medição` : "",
+  ].filter(Boolean).join(" + ");
+  const passos = comEtapa
+    ? [
+        { icone: FileText, titulo: "Antes do contrato", valor: data.antesContrato, texto: "Projetos, alvará e certidões" },
+        {
+          icone: PenLine,
+          titulo: "Na assinatura",
+          valor: data.assinatura,
+          texto: `Cartório e taxas do contrato${(data.entradaComprovar ?? 0) > 0.005 ? `. A entrada (${BRL.format(data.entradaComprovar ?? 0)}) só precisa ser comprovada: ela é gasta na obra` : ""}`,
+        },
+        {
+          icone: HardHat,
+          titulo: "Até a 1ª medição",
+          valor: data.primeiraEtapa ?? 0,
+          texto: `${data.primeiraEtapaNome} (${NUMBER.format(data.primeiraEtapaPercentual ?? 0)}% da obra)${partesEtapa ? `: ${partesEtapa}` : ""}`,
+        },
+        {
+          icone: HardHat,
+          titulo: `Obra · ${data.mesesObra} meses`,
+          valor: data.entradaDuranteObra ?? 0,
+          texto: `${(data.entradaDuranteObra ?? 0) > 0.005 ? "Restante da sua entrada, aplicado aos poucos. " : ""}${parcelaObra}`,
+        },
+      ]
+    : [
+        { icone: FileText, titulo: "Antes do contrato", valor: data.antesContrato, texto: "Projetos, alvará e certidões" },
+        { icone: PenLine, titulo: "Na assinatura", valor: data.assinatura, texto: "Entrada em dinheiro, taxas e cartório" },
+        {
+          icone: HardHat,
+          titulo: `Obra · ${data.mesesObra} meses`,
+          valor: data.caixaInicio,
+          texto: `${data.caixaInicio > 0.005 ? "Caixa para começar (volta com as medições). " : ""}${parcelaObra}`,
+        },
+      ];
+  passos.push(
     { icone: KeyRound, titulo: "Chaves na mão", valor: 0, texto: "Obra concluída e averbada" },
     { icone: CalendarClock, titulo: "Prestação", valor: data.prestacao, texto: data.sistema === "SAC" ? `Primeira parcela, depois diminui · ${data.prazoMeses} meses` : `Parcela fixa · ${data.prazoMeses} meses` },
-  ];
+  );
   return (
-    <ol className="grid gap-4 @3xl:grid-cols-5">
+    <ol className={`grid gap-4 ${passos.length > 5 ? "@3xl:grid-cols-6" : "@3xl:grid-cols-5"}`}>
       {passos.map((passo, index) => (
-        <li key={passo.titulo} className="relative flex gap-3 @3xl:flex-col @3xl:items-center @3xl:text-center">
+        <li key={passo.titulo + index} className="relative flex gap-3 @3xl:flex-col @3xl:items-center @3xl:text-center">
           {index < passos.length - 1 && <span className="absolute left-5 top-11 h-[calc(100%-1.75rem)] w-0.5 bg-emerald-200 @3xl:left-[calc(50%+1.5rem)] @3xl:top-5 @3xl:h-0.5 @3xl:w-[calc(100%-2rem)]" />}
           <span className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
             <passo.icone className="size-5" />
@@ -234,7 +274,8 @@ export function PropostaCliente({ data }: { data: PropostaData }) {
     { rotulo: "Construção da casa", valor: data.custos.construcao, cor: "#10b981" },
     ...(data.custos.servicos ?? []).map((servico, index) => ({ rotulo: servico.rotulo, valor: servico.valor, cor: ["#14b8a6", "#06b6d4", "#6366f1"][index % 3]! })),
     { rotulo: "Terreno", valor: data.custos.terreno, cor: "#8b5cf6" },
-    { rotulo: "Documentos e taxas", valor: data.custos.documentos, cor: "#0ea5e9" },
+    { rotulo: "Documentos e taxas do contrato", valor: data.custos.documentos - (data.custos.taxasObra ?? 0), cor: "#0ea5e9" },
+    { rotulo: "Taxas da obra e averbação", valor: data.custos.taxasObra ?? 0, cor: "#38bdf8" },
     { rotulo: "Juros durante a obra", valor: data.custos.juros, cor: "#f59e0b" },
   ].filter((item) => item.valor > 0.005);
 
@@ -275,7 +316,7 @@ export function PropostaCliente({ data }: { data: PropostaData }) {
           </Bloco>
           <Bloco titulo="Quem paga cada parte">
             <CasaQueSeEnche pagamento={data.pagamento} />
-            <DetalheBolso detalhe={data.bolsoDetalhe} />
+            <DetalheBolso detalhe={data.bolsoDetalhe} taxasObra={data.custos.taxasObra ?? 0} />
             {data.folgaBanco > 0.005 && <p className="mt-4 text-xs text-zinc-500">O seu crédito ainda tem folga de {BRL.format(data.folgaBanco)} para imprevistos ou para ampliar a casa.</p>}
           </Bloco>
         </div>

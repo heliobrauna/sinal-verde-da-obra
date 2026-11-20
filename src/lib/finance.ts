@@ -391,12 +391,20 @@ function calcular(input: SimulationInput) {
   const irGanhoLote = 0;
   const patrimonioTerreno = loteProprio ? agioLote : 0;
   // O banco e o FGTS só liberam após cada medição (Manual FGTS Moradia Própria, 8.5.2): para começar a obra
-  // é preciso caixa de 10% da construção. Para morar, a entrada em dinheiro que sobra depois de completar o
-  // lote já é esse caixa. Na venda, a entrada é só comprovação de recursos, a menos que a agência exija o depósito.
+  // é preciso dinheiro para executar a 1ª etapa do cronograma físico-financeiro (10% sem cronograma). Para morar,
+  // a entrada em dinheiro que sobra depois de completar o lote paga essa etapa primeiro; o que faltar é caixa que
+  // volta com a medição. Na venda, a entrada é só comprovação de recursos, a menos que a agência exija o depósito.
   const entradaDepositada = vender && input.entradaDepositada === true;
   const dinheiroEntradaNaObra = Math.max(dinheiroEntrada - saldoLoteNaoCoberto, 0);
   const entradaComoCaixa = !vender || entradaDepositada ? dinheiroEntradaNaObra : 0;
-  const capitalGiro = Math.max((custoConstrucao + extrasTotal) * 0.1 - entradaComoCaixa, 0);
+  const primeiraEtapaNome = input.stages[0]?.nome ?? "1ª etapa";
+  const primeiraEtapaPercentual = input.stages[0] ? Math.max(input.stages[0].percentual, 0) : 10;
+  const primeiraEtapa = (custoConstrucao + extrasTotal) * primeiraEtapaPercentual / 100;
+  const capitalGiro = Math.max(primeiraEtapa - entradaComoCaixa, 0);
+  // O que se paga na assinatura: cartório e taxas do contrato e o lote que o vendedor ainda precisa receber.
+  // A entrada em dinheiro não é paga ao banco: é comprovada e gasta na obra, começando pela 1ª etapa.
+  const pagamentoAssinatura = despesasAssinatura + saldoLoteNaoCoberto;
+  const inicioObra = vender ? capitalGiro + (entradaDepositada ? dinheiroEntradaNaObra : 0) : primeiraEtapa;
   // Venda: o que a obra real custa além do que o banco libera para ela sai do investidor, mês a mês, na
   // proporção das medições; se o banco libera mais do que a obra custa, a folga fica em caixa até a venda.
   // A remuneração do construtor é paga com a verba da obra, como a construção.
@@ -405,9 +413,7 @@ function calcular(input: SimulationInput) {
   const entradaAplicada = entradaDepositada ? Math.min(dinheiroEntradaNaObra, obraAlemFinanciamento) : 0;
   const obraAlemNovoDinheiro = obraAlemFinanciamento - entradaAplicada;
   // Dinheiro em mãos até a primeira medição.
-  const dinheiroParaComecar = vender
-    ? despesasPreContrato + despesasAssinatura + saldoLoteNaoCoberto + (entradaDepositada ? dinheiroEntradaNaObra : 0) + capitalGiro
-    : desembolsoAntesContrato + desembolsoAssinatura + capitalGiro;
+  const dinheiroParaComecar = despesasPreContrato + pagamentoAssinatura + inicioObra;
   const parcelaPosObra = mesesAposObra > 0 ? (jurosPosObra + amortizacaoEstimada) / mesesAposObra : 0;
   const aportesInvestidor: InvestorFlow[] = [
     { mes: 0, rotulo: "Terreno", valor: patrimonioTerreno, patrimonio: true },
@@ -415,7 +421,7 @@ function calcular(input: SimulationInput) {
     { mes: 0, rotulo: "Terreno: parte que o banco não paga", valor: saldoLoteNaoCoberto },
     { mes: 0, rotulo: "Entrada depositada aplicada na obra", valor: entradaAplicada },
     { mes: 0, rotulo: "Entrada depositada (volta no fim da obra)", valor: entradaDepositada ? dinheiroEntradaNaObra - entradaAplicada : 0, retornoMes: mesesObra },
-    { mes: 0, rotulo: "Caixa para começar (10% da obra)", valor: capitalGiro, retornoMes: mesesObra },
+    { mes: 0, rotulo: "Caixa para começar (1ª etapa da obra)", valor: capitalGiro, retornoMes: mesesObra },
     ...input.liberacoes.map((item) => ({ mes: item.mes, rotulo: "Obra além do financiamento", valor: obraAlemNovoDinheiro * item.percentual / 100 })),
     ...liberacoesMensais.map((item) => ({ mes: item.mes, rotulo: "Juros de obra", valor: item.encargo })),
     ...Array.from({ length: mesesAposObra }, (_, index) => ({ mes: mesesObra + index + 1, rotulo: "Parcelas até a venda", valor: parcelaPosObra })),
@@ -544,7 +550,7 @@ function calcular(input: SimulationInput) {
     investidorEntrada, investidorCustos, investidorAlemEntrada, investidorTotal, reservaAtraso, corretagemConstrucao, corretagemConstrucaoPct, temInvestidor, entradaDepositada,
     obraAlemFinanciamento, folgaFinanciamento, entradaAplicada, dividaNaVenda, capitalMaximo, jurosPosObra, amortizacaoEstimada,
     parcelasEstimadas: jurosPosObra + amortizacaoEstimada,
-    capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
+    capitalAportadoInvestidor, capitalDevolvidoVenda, capitalGiro, primeiraEtapa, primeiraEtapaNome, primeiraEtapaPercentual, pagamentoAssinatura, inicioObra, dinheiroEntradaNaObra, dinheiroParaComecar, patrimonioTerreno, aportesInvestidor, participacaoInvestidor, cenarios,
     origemTerreno: input.origemTerreno, selicAnual, aliquotaIr, selicLiquida, premioInvestidor: input.premioInvestidor,
     taxaPreferencial, retornoPreferencial, mesVenda, recebimentoConstrutorLote,
     corretagemLoteValor, ganhoCapitalLote: 0, irGanhoLote,

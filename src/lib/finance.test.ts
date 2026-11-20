@@ -116,7 +116,10 @@ describe("projeção financeira", () => {
     const quitado = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 0, terreno: 150000 });
     expect(quitado.dinheiroEntrada).toBe(0);
     expect(quitado.capitalGiro).toBeCloseTo((quitado.custoConstrucao + quitado.extrasTotal) * 0.1);
-    expect(quitado.dinheiroParaComecar).toBeCloseTo(quitado.desembolsoAntesContrato + quitado.desembolsoAssinatura + quitado.capitalGiro);
+    // Até a 1ª medição: despesas iniciais, cartório e taxas do contrato (mais o lote ao vendedor) e a 1ª etapa da obra.
+    expect(quitado.dinheiroParaComecar).toBeCloseTo(quitado.desembolsoAntesContrato + quitado.despesasAssinatura + quitado.saldoLoteNaoCoberto + quitado.primeiraEtapa);
+    expect(quitado.primeiraEtapa).toBeCloseTo((quitado.custoConstrucao + quitado.extrasTotal) * quitado.primeiraEtapaPercentual / 100);
+    expect(quitado.capitalGiro).toBeCloseTo(Math.max(quitado.primeiraEtapa - quitado.dinheiroEntradaNaObra, 0));
     // Ágio de R$ 50 mil + FGTS de R$ 20 mil + R$ 30 mil em dinheiro: só o dinheiro reduz o caixa inicial.
     const misto = calculate({ ...input, objetivo: "morar", lucro: 0, saldoDevedor: 100000, terreno: 150000, fgtsUtilizado: 20000, areaPlanejada: 200 });
     expect(misto.fgtsNaEntrada).toBe(20000);

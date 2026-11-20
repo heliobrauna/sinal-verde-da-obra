@@ -30,6 +30,11 @@ type ResultadoProposta = {
   desembolsoAntesContrato?: number;
   desembolsoAssinatura?: number;
   capitalGiro?: number;
+  primeiraEtapa?: number;
+  primeiraEtapaNome?: string;
+  primeiraEtapaPercentual?: number;
+  pagamentoAssinatura?: number;
+  dinheiroEntradaNaObra?: number;
   jurosObra?: number;
   prazoExecucaoMeses?: number;
   liberacoesMensais?: { encargo: number }[];
@@ -62,6 +67,15 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
   const despesas = r.despesas ?? [];
   const despesasConstrutor = despesas.filter((x) => DESPESAS_DO_CONSTRUTOR.has(x.id)).reduce((sum, x) => sum + x.valor, 0);
   const liberacoes = r.liberacoesMensais ?? [];
+  // Taxas pagas durante e no fim da obra (INSS, vistorias, averbação) saem da verba da obra, não do bolso.
+  const taxasObra = despesas.filter((x) => x.categoria === "Durante a obra" && !DESPESAS_DO_CONSTRUTOR.has(x.id)).reduce((sum, x) => sum + x.valor, 0);
+  // Linha do tempo: na assinatura só cartório, taxas e lote ao vendedor; a entrada em dinheiro é comprovada e
+  // gasta na obra, primeiro na 1ª etapa (o que faltar é caixa que volta com a medição), depois aos poucos.
+  // Registros de um cálculo anterior não têm a 1ª etapa: mantêm a entrada na assinatura.
+  const temEtapa = r.primeiraEtapa !== undefined;
+  const primeiraEtapa = r.primeiraEtapa ?? r.capitalGiro ?? 0;
+  const entradaNaObra = r.dinheiroEntradaNaObra ?? 0;
+  const entradaNaPrimeiraEtapa = temEtapa ? Math.max(primeiraEtapa - (r.capitalGiro ?? 0), 0) : 0;
   return {
     nome: item.nome,
     areaMin,
@@ -77,6 +91,7 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
       construcao: (r.custoConstrucao ?? 0) + r.extrasTotal + remuneracao - totalServicos + despesasConstrutor,
       servicos,
       documentos: despesas.reduce((sum, x) => sum + x.valor, 0) - despesasConstrutor,
+      taxasObra,
       juros: r.jurosObra ?? 0,
     },
     // A verba do banco que sobra não é liberada: o banco entra só com o que a obra usa.
@@ -98,8 +113,14 @@ export function montarProposta(item: Tables<"simulacoes">): PropostaData | null 
     folgaBanco: sobra,
     aporteArea: r.aporteParaAreaPlanejada ?? 0,
     antesContrato: r.desembolsoAntesContrato ?? 0,
-    assinatura: r.desembolsoAssinatura ?? 0,
+    assinatura: temEtapa ? r.pagamentoAssinatura ?? 0 : r.desembolsoAssinatura ?? 0,
     caixaInicio: r.capitalGiro ?? 0,
+    entradaComprovar: temEtapa ? r.dinheiroEntrada ?? 0 : 0,
+    primeiraEtapa,
+    primeiraEtapaNome: temEtapa ? r.primeiraEtapaNome ?? "1ª etapa" : "",
+    primeiraEtapaPercentual: r.primeiraEtapaPercentual ?? 0,
+    entradaNaPrimeiraEtapa,
+    entradaDuranteObra: temEtapa ? Math.max(entradaNaObra - entradaNaPrimeiraEtapa, 0) : 0,
     mesesObra: r.prazoExecucaoMeses ?? liberacoes.length,
     encargoInicial: liberacoes[0]?.encargo ?? 0,
     encargoFinal: liberacoes[liberacoes.length - 1]?.encargo ?? 0,

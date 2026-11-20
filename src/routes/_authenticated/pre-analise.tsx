@@ -175,7 +175,7 @@ function PreAnalise() {
                 {rendaInformal > 0 && <p className="text-muted-foreground">A renda informal depende de comprovação; sem ela o valor cai.</p>}
                 {r.fgtsNoLote > 0 && <p className="text-muted-foreground">O FGTS paga o lote ao vendedor na assinatura: o banco quita menos lote, a dívida começa menor e os juros durante a obra caem.{r.fgtsNaEntrada > r.fgtsNoLote && " O FGTS que sobra é liberado junto com as medições da obra."}</p>}
                 {fgts > 0 && <p className="text-muted-foreground">FGTS só para o imóvel residencial do titular, na cidade onde mora ou trabalha, sem outro imóvel lá e sem financiamento ativo no SFH, com 3 anos de trabalho com FGTS somados. Depois da obra ele ainda pode amortizar a dívida a cada 2 anos ou pagar até 80% de 12 prestações.</p>}
-                <p className="text-muted-foreground">Documentação, impostos e juros da obra são pagos à parte, e o cliente precisa de dinheiro para começar (cerca de 10% da obra), que volta com as medições. A simulação completa calcula tudo isso e a área exata a construir.</p>
+                <p className="text-muted-foreground">Documentação, impostos e juros da obra são pagos à parte, e o cliente precisa de dinheiro para executar a 1ª etapa do cronograma antes da 1ª medição (cerca de 15% da obra, a fundação), em parte com a própria entrada. A simulação completa calcula tudo isso e a área exata a construir.</p>
                 <Button asChild className="mt-2 w-full">
                   <Link
                     to="/simulacao/nova"

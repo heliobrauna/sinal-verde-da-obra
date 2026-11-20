@@ -98,6 +98,10 @@ type R = {
   maiorEncargoMensal?: number;
   aportesInvestidor?: { mes: number; rotulo: string; valor: number }[];
   capitalGiro?: number;
+  primeiraEtapaNome?: string;
+  primeiraEtapaPercentual?: number;
+  pagamentoAssinatura?: number;
+  inicioObra?: number;
   dinheiroParaComecar?: number;
   selicAnual?: number;
   selicLiquida?: number;
@@ -391,12 +395,19 @@ function Result() {
                 title="Dinheiro para começar"
                 rows={[
                   ["Antes do contrato (projetos, alvará, certidões)", r.desembolsoAntesContrato],
-                  ["Na assinatura (entrada em dinheiro, taxas e cartório)", r.desembolsoAssinatura],
-                  ["Caixa para iniciar a obra (10%)", r.capitalGiro],
+                  ...(r.inicioObra !== undefined
+                    ? ([
+                        ["Na assinatura (cartório, taxas do contrato e lote ao vendedor)", r.pagamentoAssinatura],
+                        [`${item.objetivo === "vender" ? "Caixa para iniciar a obra" : "Para executar"}: ${r.primeiraEtapaNome ?? "1ª etapa"} (${NUMBER.format(r.primeiraEtapaPercentual ?? 0)}% do cronograma)`, r.inicioObra],
+                      ] as Row[])
+                    : ([
+                        ["Na assinatura (entrada em dinheiro, taxas e cartório)", r.desembolsoAssinatura],
+                        ["Caixa para iniciar a obra (10%)", r.capitalGiro],
+                      ] as Row[])),
                 ]}
                 total={["Total em mãos até a 1ª medição", r.dinheiroParaComecar]}
               />
-              <p className="mt-2 text-xs text-muted-foreground">O banco e o FGTS só liberam depois de cada etapa medida. O caixa para iniciar paga as fundações e volta com as liberações das medições.</p>
+              <p className="mt-2 text-xs text-muted-foreground">O banco e o FGTS só liberam depois de cada etapa medida. {item.objetivo === "vender" ? "O caixa para iniciar paga a 1ª etapa e volta com as liberações das medições." : "A 1ª etapa é paga primeiro com a entrada em dinheiro; o que faltar é caixa que volta com a medição. A entrada não é paga na assinatura: só é comprovada."}</p>
             </div>
           )}
         </div>
